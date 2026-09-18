@@ -31,8 +31,8 @@ PrivilegesRequired=admin
 PrivilegesRequiredOverridesAllowed=dialog
 
 [Files]
-; SNACK app
-Source: "..\target\release\{#MyAppExeName}"; DestDir: "{#SnackHome}"; Flags: ignoreversion
+; SNACK app (cargo tauri build outputs under src-tauri/target/release)
+Source: "..\src-tauri\target\release\{#MyAppExeName}"; DestDir: "{#SnackHome}"; Flags: ignoreversion
 ; GenieX runtime installer (runs silently)
 Source: "runtime\geniex-cli-setup.exe"; DestDir: "C:\Snack\staging"; Flags: deleteafterinstall
 ; Models — one per directory, file named <ModelId>.gguf (LOAD-BEARING layout)

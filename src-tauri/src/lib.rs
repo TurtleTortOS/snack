@@ -167,7 +167,7 @@ fn server_toggle(app: tauri::AppHandle, on: bool) -> Result<ServerStatus, String
 }
 
 #[tauri::command]
-fn server_status(app: tauri::AppHandle) -> Result<ServerStatus, String> {
+fn server_status() -> Result<ServerStatus, String> {
     let cfg = load_config();
     let state = if server_alive(&cfg) {
         "running"
@@ -182,15 +182,21 @@ fn server_status(app: tauri::AppHandle) -> Result<ServerStatus, String> {
     })
 }
 
+#[derive(Serialize, Clone)]
+struct SelectResult {
+    warming: bool,
+}
+
 #[tauri::command]
-fn model_select(id: String, nctx: Option<u32>) -> Result<bool, String> {
+fn model_select(id: String, nctx: Option<u32>) -> Result<SelectResult, String> {
     let mut cfg = load_config();
+    let changed = cfg.model != id;
     cfg.model = id;
     if let Some(n) = nctx {
         cfg.nctx = n;
     }
     save_config(&cfg)?;
-    Ok(true)
+    Ok(SelectResult { warming: changed })
 }
 
 #[tauri::command]

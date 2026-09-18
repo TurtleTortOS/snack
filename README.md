@@ -51,10 +51,16 @@ chat completions works: IDEs, LM Studio, scripts.
 ```powershell
 # toolchain (one-time): rustup + MSVC linker + WebView2 runtime
 #   rustup default aarch64-pc-windows-msvc   (see docs/BUILD.md)
+#   cargo install tauri-cli --version "^2" --locked
 
-cargo tauri dev      # dev window (loads ui/ directly)
-cargo tauri build    # release .exe + NSIS installer
+cd C:\Snack-src\snack          # repo checkout
+cargo tauri dev               # dev window (loads ui/ directly, hot-reloads)
+cargo tauri build             # release: target\release\snack.exe + NSIS installer
 ```
+
+> The Rust crate lives in `src-tauri/` (standard Tauri 2 layout). `cargo tauri`
+> is run from the repo root; a plain `cargo check`/`cargo build` is run from
+> `src-tauri/`.
 
 The frontend is plain HTML/CSS/JS (`ui/`) — no node/npm needed. You can open
 `ui/index.html` directly in a browser to review the UI (it runs in a labeled **demo mode**

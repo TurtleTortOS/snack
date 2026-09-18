@@ -34,7 +34,7 @@ foreach ($e in $entries) {
 }
 
 Write-Host "=== 2. snack.exe built? ==="
-$exe = "$root\target\release\snack.exe"
+$exe = "$root\src-tauri\target\release\snack.exe"
 if (-not (Test-Path $exe)) {
   Write-Host "  MISSING: target\release\snack.exe — run: cargo tauri build"
   exit 1

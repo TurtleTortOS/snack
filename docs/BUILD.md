@@ -33,6 +33,9 @@ cargo tauri dev              # iterate: hot-reloads ui/, spawns the app window
 cargo tauri build            # release: target\release\snack.exe + NSIS installer
 ```
 
+The crate is in `src-tauri/` (standard Tauri 2 layout). To type-check without the
+Tauri CLI: `cd src-tauri; cargo check`.
+
 ## Dev without the shell
 
 `ui/index.html` is self-contained (no build step). Open it in Edge/Chrome to review the
