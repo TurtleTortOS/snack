@@ -1,0 +1,13 @@
+# Rust
+target/
+
+# Tauri
+src-tauri/gen/schemas/
+
+# OS
+Thumbs.db
+.DS_Store
+
+# local state
+*.log
+.env

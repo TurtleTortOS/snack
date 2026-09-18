@@ -1,0 +1,25 @@
+{
+  "note": "Pinned artifacts for SnackSetup.exe. SHA256 values must be filled with the real hashes of the exact files in runtime/ before building the installer. Never build from an unfilled versions.json.",
+  "geniex_cli_setup": {
+    "file": "runtime/geniex-cli-setup.exe",
+    "url": "https://github.com/qualcomm/GenieX/releases",
+    "version": "0.6.1",
+    "sha256": "FILL_BEFORE_BUILD"
+  },
+  "hermes_setup": {
+    "file": "runtime/Hermes-Setup.exe",
+    "url": "https://hermes-agent.nousresearch.com (Windows ARM64)",
+    "version": "FILL",
+    "sha256": "FILL_BEFORE_BUILD"
+  },
+  "model_4b": {
+    "file": "runtime/Qwen3.8-4B.gguf",
+    "url": "https://huggingface.co/TurtleTortOS/snack-models (Qwen3.8-4B-Q4_0)",
+    "sha256": "FILL_BEFORE_BUILD"
+  },
+  "model_9b": {
+    "file": "runtime/Qwen3.8-9B.gguf",
+    "url": "https://huggingface.co/TurtleTortOS/snack-models (Qwen3.8-9B-Q4_0)",
+    "sha256": "FILL_BEFORE_BUILD"
+  }
+}

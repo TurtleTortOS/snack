@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SNACK</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="app">
+    <!-- ============ HEADER ============ -->
+    <header class="header">
+      <div class="brand">
+        <div class="brand-mark">S</div>
+        <div class="brand-text">
+          <div class="brand-name">SNACK</div>
+          <div class="brand-sub">Snapdragon NPU AI Chat Kit</div>
+        </div>
+      </div>
+      <nav class="tabs">
+        <button class="tab active" data-panel="home">Home</button>
+        <button class="tab" data-panel="models">Models</button>
+        <button class="tab" data-panel="system">System</button>
+        <button class="tab" data-panel="about">About</button>
+      </nav>
+      <div class="header-status" id="headerStatus">
+        <span class="status-dot" id="statusDot"></span>
+        <span id="statusText">stopped</span>
+      </div>
+    </header>
+
+    <!-- ============ HOME ============ -->
+    <section class="panel active" id="panel-home">
+      <div class="home-grid">
+        <div class="card server-card">
+          <div class="card-title">Inference Server</div>
+          <div class="server-body">
+            <button id="serverToggle" class="toggle" aria-pressed="false">
+              <span class="toggle-track"><span class="toggle-thumb"></span></span>
+              <span class="toggle-label" id="toggleLabel">Off</span>
+            </button>
+            <div class="server-meta">
+              <div class="meta-row"><span class="meta-key">Model</span><span class="meta-val" id="homeModel">Qwen3.8-9B</span></div>
+              <div class="meta-row"><span class="meta-key">Context</span><span class="meta-val" id="homeCtx">64k</span></div>
+              <div class="meta-row"><span class="meta-key">State</span><span class="meta-val" id="homeState">stopped</span></div>
+            </div>
+          </div>
+          <p class="hint">Turning the server off fully stops the NPU process and frees its memory.</p>
+        </div>
+
+        <div class="card launch-card">
+          <div class="card-title">Chat</div>
+          <p class="launch-copy">Talk to the model you've selected in Hermes, the chat app bundled with SNACK.</p>
+          <button id="launchChat" class="btn primary">Launch Chat</button>
+          <p class="hint">If a model was just selected it may take ~15–30&nbsp;s to warm up on the first message.</p>
+        </div>
+      </div>
+
+      <div class="card quick-card">
+        <div class="card-title">At a glance</div>
+        <div class="quick-grid">
+          <div class="quick"><div class="quick-num" id="quickTps">~7.1</div><div class="quick-label">tokens/sec (decode)</div></div>
+          <div class="quick"><div class="quick-num" id="quickSize">5.08 GB</div><div class="quick-label">active model file</div></div>
+          <div class="quick"><div class="quick-num" id="quickCpu">NPU</div><div class="quick-label">compute target</div></div>
+          <div class="quick"><div class="quick-num">127.0.0.1</div><div class="quick-label">bind (local only)</div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ MODELS ============ -->
+    <section class="panel" id="panel-models">
+      <div class="card">
+        <div class="card-head">
+          <div class="card-title">Models</div>
+          <div class="card-sub">One model is resident in NPU memory at a time. Selecting another swaps it in on the next request.</div>
+        </div>
+        <div id="modelList" class="model-list"><!-- rendered by app.js --></div>
+      </div>
+    </section>
+
+    <!-- ============ SYSTEM (DEV) ============ -->
+    <section class="panel" id="panel-system">
+      <div class="card">
+        <div class="card-head">
+          <div class="card-title">Developer / System</div>
+          <div class="card-sub">The local OpenAI-compatible endpoint. Point any tool — IDE, script, LM Studio — at your NPU.</div>
+        </div>
+
+        <div class="dev-grid">
+          <div class="dev-block">
+            <div class="dev-label">Endpoint</div>
+            <div class="code-row">
+              <code id="endpoint">http://127.0.0.1:18181/v1</code>
+              <button class="btn small" data-copy="endpoint">Copy</button>
+            </div>
+            <div class="dev-label" style="margin-top:14px">Model IDs</div>
+            <div class="code-row">
+              <code>qualcomm/Qwen3.8-4B</code>
+              <button class="btn small" data-copy-text="qualcomm/Qwen3.8-4B">Copy</button>
+            </div>
+            <div class="code-row">
+              <code>qualcomm/Qwen3.8-9B</code>
+              <button class="btn small" data-copy-text="qualcomm/Qwen3.8-9B">Copy</button>
+            </div>
+          </div>
+
+          <div class="dev-block">
+            <div class="dev-label">Config (C:\Snack\config.json)</div>
+            <pre id="configPre" class="code-block">{ }</pre>
+          </div>
+        </div>
+
+        <div class="dev-block" style="margin-top:18px">
+          <div class="dev-label">Example (curl)</div>
+          <pre class="code-block" id="curlExample">curl http://127.0.0.1:18181/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "qualcomm/Qwen3.8-9B",
+    "messages": [{"role":"user","content":"Hello"}],
+    "max_tokens": 64
+  }'</pre>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <div class="card-title">Doctor</div>
+          <div class="card-sub">Diagnose the install: NPU, runtime, models, server, inference, Hermes.</div>
+        </div>
+        <div class="doctor-actions">
+          <button id="runDoctor" class="btn primary">Run Doctor</button>
+          <button id="reRegister" class="btn">Re-register models</button>
+        </div>
+        <div id="doctorResults" class="doctor-results"><!-- rendered by app.js --></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Server log (tail)</div>
+        <pre id="logTail" class="code-block log">— no recent output —</pre>
+      </div>
+    </section>
+
+    <!-- ============ ABOUT ============ -->
+    <section class="panel" id="panel-about">
+      <div class="card">
+        <div class="card-title">SNACK</div>
+        <p class="about-lead">Snapdragon NPU AI Chat Kit — a local AI kit for Snapdragon Surfaces.</p>
+        <p>SNACK runs an open-weight model on the device's <strong>NPU</strong> (not the CPU or GPU) via
+          Qualcomm's GenieX runtime, and exposes it through a standard OpenAI-compatible endpoint on
+          <code>127.0.0.1:18181</code>. Chat happens in the bundled Hermes app; SNACK is the control center
+          for starting the server, choosing the model, and setting context.</p>
+        <div class="about-facts">
+          <div class="fact"><span>Target</span><span>Microsoft Surface, Snapdragon X Plus (X1P42100), Windows ARM64, 16&nbsp;GB</span></div>
+          <div class="fact"><span>Runtime</span><span>GenieX 0.6.1 (BSD-3-Clause)</span></div>
+          <div class="fact"><span>Models</span><span>Qwen3.8-4B / Qwen3.8-9B, Q4_0 GGUF (Apache-2.0)</span></div>
+          <div class="fact"><span>Endpoint</span><span>http://127.0.0.1:18181/v1 (loopback only)</span></div>
+          <div class="fact"><span>License</span><span>SNACK: Apache-2.0</span></div>
+        </div>
+        <div class="about-links">
+          <a href="#" id="linkRepo">Repository</a>
+          <span class="sep">·</span>
+          <a href="#" id="linkGeniex">GenieX</a>
+          <span class="sep">·</span>
+          <a href="#" id="linkModels">Model cards</a>
+        </div>
+      </div>
+    </section>
+
+    <footer class="footer">
+      <span id="versionTag">SNACK 0.1.0</span>
+      <span class="sep">·</span>
+      <span id="modeTag">demo mode</span>
+    </footer>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

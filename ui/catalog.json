@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "endpoint": "http://127.0.0.1:18181/v1",
+  "models": [
+    {
+      "id": "qualcomm/Qwen3.8-4B",
+      "name": "Qwen3.8-4B",
+      "tag": "FAST",
+      "usecase": "Quick questions, short answers, lowest latency.",
+      "sizeGB": 2.43,
+      "tps": 10.2,
+      "coldLoadS": 15,
+      "installed": true,
+      "sha256": "PENDING_FILL_AFTER_FINAL_QUANT"
+    },
+    {
+      "id": "qualcomm/Qwen3.8-9B",
+      "name": "Qwen3.8-9B",
+      "tag": "SMART",
+      "usecase": "Longer answers, better reasoning, longer context.",
+      "sizeGB": 5.08,
+      "tps": 7.1,
+      "coldLoadS": 30,
+      "installed": true,
+      "sha256": "PENDING_FILL_AFTER_FINAL_QUANT"
+    }
+  ],
+  "contextSteps": [8192, 16384, 32768, 65536],
+  "defaultModel": "qualcomm/Qwen3.8-9B",
+  "defaultCtx": 65536
+}
