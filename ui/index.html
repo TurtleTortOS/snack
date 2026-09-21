@@ -17,17 +17,21 @@
           <div class="brand-sub">Snapdragon NPU AI Chat Kit</div>
         </div>
       </div>
-      <nav class="tabs">
-        <button class="tab active" data-panel="home">Home</button>
-        <button class="tab" data-panel="models">Models</button>
-        <button class="tab" data-panel="system">System</button>
-        <button class="tab" data-panel="about">About</button>
-      </nav>
       <div class="header-status" id="headerStatus">
         <span class="status-dot" id="statusDot"></span>
         <span id="statusText">stopped</span>
       </div>
     </header>
+
+    <!-- ============ FOLDER (tabs + body) ============ -->
+    <div class="folder">
+      <nav class="folder-tabs" role="tablist">
+        <button class="tab active" data-panel="home">Home</button>
+        <button class="tab" data-panel="models">Models</button>
+        <button class="tab" data-panel="system">System</button>
+        <button class="tab" data-panel="about">About</button>
+      </nav>
+      <div class="folder-body">
 
     <!-- ============ HOME ============ -->
     <section class="panel active" id="panel-home">
@@ -165,6 +169,8 @@
         </div>
       </div>
     </section>
+      </div><!-- /folder-body -->
+    </div><!-- /folder -->
 
     <footer class="footer">
       <span id="versionTag">SNACK 0.1.0</span>
