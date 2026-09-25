@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- SNACK — Snapdragon NPU AI Chat Kit. Flat mark: turtle shell (back) + 3 circuit pads (NPU cores). -->
+  <rect width="64" height="64" rx="14" fill="#4cc9a0"/>
+  <g fill="none" stroke="#0b1f19" stroke-width="5">
+    <rect x="6" y="22" width="52" height="28" rx="7"/>
+  </g>
+  <path d="M32 22 C32 13 26 8 19 12 C24 14 27 18 27 22 Z" fill="#0b1f19"/>
+  <path d="M32 22 C32 13 38 8 45 12 C40 14 37 18 37 22 Z" fill="#0b1f19"/>
+  <g fill="#0b1f19">
+    <rect x="17" y="30" width="7" height="12" rx="2.5"/>
+    <rect x="28.5" y="30" width="7" height="12" rx="2.5"/>
+    <rect x="40" y="30" width="7" height="12" rx="2.5"/>
+  </g>
+  <g stroke="#0b1f19" stroke-width="4" stroke-linecap="round">
+    <path d="M22 42 L18 47"/>
+    <path d="M42 42 L46 47"/>
+  </g>
+</svg>
