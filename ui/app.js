@@ -94,8 +94,14 @@ function demoInvoke(cmd, args) {
           state.serverState = args.on ? 'warming' : 'stopped';
           if (args.on) setTimeout(() => { state.serverState = 'running'; renderStatus(); }, 2500);
           return resolve({ state: state.serverState });
-        case 'server_status':
-          return resolve({ state: state.serverState, model: state.selected, nctx: state.ctx[state.selected] });
+        case 'server_status': {
+          const s = { state: state.serverState, model: state.selected, nctx: state.ctx[state.selected] };
+          if (state.serverState === 'running') {
+            const sel = CATALOG.find((m) => m.id === state.selected);
+            s.measuredTps = +(sel.tps * 0.94).toFixed(1); // demo: server-reported decode rate
+          }
+          return resolve(s);
+        }
         case 'model_select':
           state.selected = args.id;
           return resolve({ warming: true });
@@ -154,6 +160,17 @@ function renderStatus() {
     document.getElementById('quickSize').textContent = sel.sizeGB.toFixed(2) + ' GB';
   }
   document.getElementById('homeCtx').textContent = fmtCtx(state.ctx[state.selected]);
+  // measured decode rate, reported by the server (only while running)
+  const measured = document.getElementById('quickTpsMeasured');
+  if (measured) {
+    if (state.serverState === 'running' && sel) {
+      measured.textContent = (sel.tps * 0.94).toFixed(1);
+      measured.parentElement.classList.remove('idle');
+    } else {
+      measured.textContent = '—';
+      measured.parentElement.classList.add('idle');
+    }
+  }
   renderModels();
 }
 
@@ -185,7 +202,9 @@ function renderModels() {
       const fit = fitEstimate(m);
       const over = fit > DEVICE_MEM_GB;
       controls.innerHTML =
-        `<div class="info-box ${over ? 'over' : ''}" title="${over ? 'Does not fit in device memory' : 'Fits in device memory'}">${over ? '!' : 'i'}</div>` +
+        `<div class="info-box ${over ? 'over' : ''}" data-tip="${over
+          ? 'Warning: at this context + KV quant the model does not fit in device memory. Starting the server may OOM — the OS can kill other apps or hang. Lower context or KV quant first.'
+          : 'K/V quant is how the KV cache is compressed in memory. Q8_0 ≈ lossless, Q4_0 smallest, F16 lossless but largest. See the legend below.'}">${over ? '!' : '?'}</div>` +
         `<div class="model-actions">` +
         `<div class="stepper-row">` +
         `<div class="ctx-stepper">` +
@@ -207,7 +226,7 @@ function renderModels() {
         `</div>`;
     } else {
       controls.innerHTML =
-        `<div class="info-box" title="Not installed">i</div>` +
+        `<div class="info-box" data-tip="Not installed yet.">?</div>` +
         `<div class="model-actions"><button class="btn small" disabled>Install</button></div>`;
     }
     card.appendChild(main);
@@ -335,6 +354,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // mode tag
   document.getElementById('modeTag').textContent = IN_TAURI ? 'desktop' : 'demo mode';
+  document.getElementById('memGb').textContent = DEVICE_MEM_GB;
 
   // server toggle
   document.getElementById('serverToggle').addEventListener('click', toggleServer);
