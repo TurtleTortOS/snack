@@ -124,7 +124,7 @@
       <div class="card">
         <div class="card-head">
           <div class="card-title">Developer / System</div>
-          <div class="card-sub">The local OpenAI-compatible endpoint. Point any tool — IDE, script, LM Studio — at your NPU.</div>
+          <div class="card-sub">The local OpenAI-compatible endpoint. Point any agentic harness, tool, or resource that uses it here.</div>
         </div>
 
         <div class="dev-grid">
@@ -185,11 +185,9 @@
     <section class="panel" id="panel-about">
       <div class="card">
         <div class="card-title">SNACK</div>
-        <p class="about-lead">Snapdragon NPU AI Chat Kit — a local AI kit for Snapdragon Surfaces.</p>
-        <p>SNACK runs an open-weight model on the device's <strong>NPU</strong> (not the CPU or GPU) via
-          Qualcomm's GenieX runtime, and exposes it through a standard OpenAI-compatible endpoint on
-          <code>127.0.0.1:18181</code>. Chat happens in the bundled Hermes app; SNACK is the control center
-          for starting the server, choosing the model, and setting context.</p>
+        <p class="about-lead">Snapdragon NPU AI Chat Kit</p>
+        <p>SNACK runs an open-weight model on the device's NPU via Qualcomm's GenieX runtime, and exposes it through a standard OpenAI-compatible endpoint on <code>127.0.0.1:18181</code>. I designed it to be used via the bundled Hermes app, though you can point any harness to the endpoint.</p>
+        <p>SNACK is the control center for starting the server, choosing the model, and setting context.</p>
         <div class="about-facts">
           <div class="fact"><span>Target</span><span>Microsoft Surface, Snapdragon X Plus (X1P42100), Windows ARM64, 16&nbsp;GB</span></div>
           <div class="fact"><span>Runtime</span><span>GenieX 0.6.1 (BSD-3-Clause)</span></div>
