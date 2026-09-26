@@ -37,9 +37,10 @@ const CATALOG = [
   },
 ];
 
-// context cap: 256k, however rough
-const CTX_STEPS = [8192, 16384, 32768, 65536, 131072, 262144];
-const CTX_MAX = CTX_STEPS[CTX_STEPS.length - 1];
+// context: 16k steps up to a 256k roof
+const CTX_MIN = 16384;
+const CTX_STEP = 16384;
+const CTX_MAX = 262144;
 
 // KV-cache quant options: value = bytes per element (K and V quantized independently)
 const KV_TYPES = { 'F16': 2, 'Q8_0': 1, 'Q4_0': 0.5 };
@@ -54,17 +55,17 @@ const state = {
   selected: 'qualcomm/Qwen3.8-9B',
   ctx: { 'qualcomm/Qwen3.8-4B': 65536, 'qualcomm/Qwen3.8-9B': 65536 },
   kv: {
-    'qualcomm/Qwen3.8-4B': { k: 'Q4_0', v: 'Q4_0' },
-    'qualcomm/Qwen3.8-9B': { k: 'Q4_0', v: 'Q4_0' },
+    'qualcomm/Qwen3.8-4B': { k: 'Q8_0', v: 'Q4_0' },
+    'qualcomm/Qwen3.8-9B': { k: 'Q8_0', v: 'Q4_0' },
   },
   doctor: [],
 };
 
 function fmtCtx(n) { return (n / 1024) + 'k'; }
 
-// KV-cache estimate (GB): 2 (K+V) × layers × kvHeads × headDim × ctx × bytes
+// KV-cache estimate (GB) for ONE tensor type: layers × kvHeads × headDim × ctx × bytes
 function kvEstGB(m, ctx, bytes) {
-  return (2 * m.layers * m.kvHeads * m.headDim * ctx * bytes) / 1e9;
+  return (m.layers * m.kvHeads * m.headDim * ctx * bytes) / 1e9;
 }
 
 // total estimate: model file + KV(K) + KV(V)
@@ -74,6 +75,8 @@ function fitEstimate(m) {
   const kvGB = kvEstGB(m, ctx, KV_TYPES[kv.k]) + kvEstGB(m, ctx, KV_TYPES[kv.v]);
   return m.sizeGB + kvGB;
 }
+
+function fmtGB(gb) { return gb >= 100 ? Math.round(gb).toString() : gb.toFixed(1); }
 
 // ---------- Tauri invoke helper (falls back to demo behavior) ----------
 async function invoke(cmd, args) {
@@ -175,18 +178,22 @@ function renderModels() {
       (m.installed ? '' : `<span class="model-spec" style="color:var(--warn)">not installed</span>`) +
       `</div>`;
 
-    const actions = document.createElement('div');
-    actions.className = 'model-actions';
+    const controls = document.createElement('div');
+    controls.className = 'model-controls';
     if (m.installed) {
       const kv = state.kv[m.id];
       const fit = fitEstimate(m);
       const over = fit > DEVICE_MEM_GB;
-      actions.innerHTML =
-        (isSel ? `<div class="selected-badge">running default</div>` : `<button class="btn small primary" data-select="${m.id}">Select</button>`) +
+      controls.innerHTML =
+        `<div class="info-box ${over ? 'over' : ''}" title="${over ? 'Does not fit in device memory' : 'Fits in device memory'}">${over ? '!' : 'i'}</div>` +
+        `<div class="model-actions">` +
+        `<div class="stepper-row">` +
         `<div class="ctx-stepper">` +
-        `<button data-ctx-minus="${m.id}" ${ctx <= CTX_STEPS[0] ? 'disabled' : ''}>−</button>` +
+        `<button data-ctx-minus="${m.id}" ${ctx <= CTX_MIN ? 'disabled' : ''}>−</button>` +
         `<span class="ctx-val" id="ctx-${cssSafe(m.id)}">${fmtCtx(ctx)}</span>` +
         `<button data-ctx-plus="${m.id}" ${ctx >= CTX_MAX ? 'disabled' : ''}>+</button>` +
+        `</div>` +
+        (isSel ? `<span class="selected-badge">running default</span>` : `<button class="btn small primary" data-select="${m.id}">Select</button>`) +
         `</div>` +
         `<div class="kv-row">` +
         `<span class="kv-pair">K <select data-kv-k="${m.id}">` +
@@ -195,13 +202,16 @@ function renderModels() {
         `<span class="kv-pair">V <select data-kv-v="${m.id}">` +
         Object.keys(KV_TYPES).map((t) => `<option ${kv.v === t ? 'selected' : ''}>${t}</option>`).join('') +
         `</select></span>` +
-        `<span class="fit-val ${over ? 'over' : ''}">Fit: ${fit.toFixed(1)} / ${DEVICE_MEM_GB} GB</span>` +
+        `<span class="fit-val ${over ? 'over' : ''}">Fit: <b>${fmtGB(fit)}</b> / <b>${DEVICE_MEM_GB}</b> GB</span>` +
+        `</div>` +
         `</div>`;
     } else {
-      actions.innerHTML = `<button class="btn small" disabled>Install</button>`;
+      controls.innerHTML =
+        `<div class="info-box" title="Not installed">i</div>` +
+        `<div class="model-actions"><button class="btn small" disabled>Install</button></div>`;
     }
     card.appendChild(main);
-    card.appendChild(actions);
+    card.appendChild(controls);
     list.appendChild(card);
   }
 }
@@ -245,9 +255,7 @@ async function selectModel(id) {
 
 async function stepCtx(id, dir) {
   const cur = state.ctx[id];
-  let i = CTX_STEPS.indexOf(cur);
-  i = Math.max(0, Math.min(CTX_STEPS.length - 1, i + dir));
-  const n = CTX_STEPS[i];
+  const n = Math.max(CTX_MIN, Math.min(CTX_MAX, cur + dir * CTX_STEP));
   if (n === cur) return;
   await invoke('model_context', { id, nctx: n });
   state.ctx[id] = n;
@@ -305,7 +313,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const qs = new URLSearchParams(location.search);
   const qTheme = qs.get('theme');
   const qCtx = qs.get('ctx');
-  if (qCtx && CTX_STEPS.includes(+qCtx)) {
+  if (qCtx && +qCtx >= CTX_MIN && +qCtx <= CTX_MAX && (+qCtx % CTX_STEP) === 0) {
     for (const id of Object.keys(state.ctx)) state.ctx[id] = +qCtx;
   }
   const systemDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;

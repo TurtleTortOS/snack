@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <title>SNACK</title>
-  <link rel="icon" href="snack-favicon.svg?v=3" type="image/svg+xml" />
-  <link rel="stylesheet" href="styles.css?v=3" />
+  <link rel="icon" href="snack-favicon.svg?v=4" type="image/svg+xml" />
+  <link rel="stylesheet" href="styles.css?v=4" />
 </head>
 <body>
   <div id="app">
@@ -104,6 +104,17 @@
           <div class="card-sub">One model is resident in NPU memory at a time. Selecting another swaps it in on the next request.</div>
         </div>
         <div id="modelList" class="model-list"><!-- rendered by app.js --></div>
+      </div>
+      <div class="card">
+        <div class="card-title">KV cache quant</div>
+        <p class="hint">The KV cache holds everything the model has seen so far — it grows with context length. Quantizing it trades a little precision for a lot of room.</p>
+        <ul class="kv-legend">
+          <li><code>F16</code> — full precision, lossless. Largest cache. Fine for short contexts.</li>
+          <li><code>Q8_0</code> — near-lossless at ½ the size. The safe high-quality choice.</li>
+          <li><code>Q4_0</code> — smallest (¼ the size), visibly coarser. Use it to buy long context.</li>
+        </ul>
+        <p class="hint"><b>Recommended: K&nbsp;Q8_0 / V&nbsp;Q4_0.</b> The K (keys) cache is the sensitive one — it steers the model's attention, so quantize it gently. The V (values) cache tolerates harder quant, so drop it to Q4_0 to save space.</p>
+        <p class="hint disclaimer"><b>Heads up:</b> this memory is your device's working RAM, not the NPU's. A big model + long context crowds out everything else — expect the OS to swap, lag, or refuse other apps while the server is on. Lower context or KV quant if multitasking suffers.</p>
       </div>
     </section>
 
@@ -204,6 +215,6 @@
     </footer>
   </div>
 
-  <script src="app.js?v=3"></script>
+  <script src="app.js?v=4"></script>
 </body>
 </html>
