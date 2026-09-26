@@ -59,6 +59,7 @@ const state = {
     'qualcomm/Qwen3.8-9B': { k: 'Q8_0', v: 'Q4_0' },
   },
   doctor: [],
+  measuredTps: null, // last decode rate reported by the server
 };
 
 function fmtCtx(n) { return (n / 1024) + 'k'; }
@@ -98,7 +99,7 @@ function demoInvoke(cmd, args) {
           const s = { state: state.serverState, model: state.selected, nctx: state.ctx[state.selected] };
           if (state.serverState === 'running') {
             const sel = CATALOG.find((m) => m.id === state.selected);
-            s.measuredTps = +(sel.tps * 0.94).toFixed(1); // demo: server-reported decode rate
+            s.measuredTps = +(sel.tps * 0.94).toFixed(1); // demo: simulated server report
           }
           return resolve(s);
         }
@@ -163,8 +164,8 @@ function renderStatus() {
   // measured decode rate, reported by the server (only while running)
   const measured = document.getElementById('quickTpsMeasured');
   if (measured) {
-    if (state.serverState === 'running' && sel) {
-      measured.textContent = (sel.tps * 0.94).toFixed(1);
+    if (state.serverState === 'running' && state.measuredTps != null) {
+      measured.textContent = String(state.measuredTps);
       measured.parentElement.classList.remove('idle');
     } else {
       measured.textContent = '—';
@@ -276,7 +277,7 @@ async function stepCtx(id, dir) {
   const cur = state.ctx[id];
   const n = Math.max(CTX_MIN, Math.min(CTX_MAX, cur + dir * CTX_STEP));
   if (n === cur) return;
-  await invoke('model_context', { id, nctx: n });
+  await invoke('model_context', { id, nctx: n, cacheTypeK: state.kv[id].k, cacheTypeV: state.kv[id].v });
   state.ctx[id] = n;
   renderStatus();
   if (id === state.selected) renderConfig();
@@ -284,6 +285,7 @@ async function stepCtx(id, dir) {
 
 async function setKVType(id, which, type) {
   state.kv[id][which] = type;
+  await invoke('model_context', { id, nctx: state.ctx[id], cacheTypeK: state.kv[id].k, cacheTypeV: state.kv[id].v });
   renderStatus();
   if (id === state.selected) renderConfig();
 }
@@ -399,10 +401,22 @@ document.addEventListener('DOMContentLoaded', () => {
   // poll server status so "warming" -> "running" flips without user action
   setInterval(async () => {
     const s = await invoke('server_status');
-    if (s && s.state !== state.serverState) {
-      state.serverState = s.state;
+    if (s) {
+      if (s.state !== state.serverState) state.serverState = s.state;
       state.serverOn = s.state !== 'stopped';
+      state.measuredTps = (s.measuredTps != null) ? s.measuredTps : null;
       renderStatus();
     }
   }, 2000);
+
+  // server log tail (System page)
+  const logEl = document.getElementById('logTail');
+  if (logEl) {
+    setInterval(async () => {
+      const lines = await invoke('log_tail');
+      logEl.textContent = Array.isArray(lines) && lines.length
+        ? lines.slice().reverse().join('\n')
+        : '— no recent output —';
+    }, 2000);
+  }
 });

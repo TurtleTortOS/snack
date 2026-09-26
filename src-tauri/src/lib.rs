@@ -28,7 +28,14 @@ struct Config {
     model: String,
     nctx: u32,
     port: u16,
+    #[serde(default = "default_q8")]
+    cache_type_k: String,
+    #[serde(default = "default_q4")]
+    cache_type_v: String,
 }
+
+fn default_q8() -> String { "Q8_0".into() }
+fn default_q4() -> String { "Q4_0".into() }
 
 impl Default for Config {
     fn default() -> Self {
@@ -36,12 +43,15 @@ impl Default for Config {
             model: "qualcomm/Qwen3.8-9B".into(),
             nctx: 65536,
             port: 18181,
+            cache_type_k: "Q8_0".into(),
+            cache_type_v: "Q4_0".into(),
         }
     }
 }
 
 struct ServerState {
     child: Option<std::process::Child>,
+    log: std::collections::VecDeque<String>, // tail of geniex output
 }
 
 struct State(Mutex<ServerState>);
@@ -77,6 +87,25 @@ struct ServerStatus {
     model: String,
     nctx: u32,
     port: u16,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    measured_tps: Option<f32>,
+}
+
+/// Parse the last "t/s" decode-rate figure out of the log tail, if present.
+/// GenieX serve prints progress lines like `… 12.3 t/s …` while decoding.
+fn parse_tps(log: &std::collections::VecDeque<String>) -> Option<f32> {
+    let mut last: Option<f32> = None;
+    for line in log.iter().rev() {
+        if let Some(pos) = line.find("t/s") {
+            let head = &line[..pos];
+            let start = head.rfind(|c: char| !c.is_ascii_digit() && c != '.').map(|i| i + 1).unwrap_or(0);
+            if let Ok(v) = head[start..].parse::<f32>() {
+                last = Some(v);
+                break;
+            }
+        }
+    }
+    last
 }
 
 fn http_ok(url: &str, timeout: Duration) -> bool {
@@ -119,6 +148,7 @@ fn server_toggle(app: tauri::AppHandle, on: bool) -> Result<ServerStatus, String
             model: cfg.model.clone(),
             nctx: cfg.nctx,
             port: cfg.port,
+            measured_tps: None,
         });
     }
 
@@ -129,6 +159,7 @@ fn server_toggle(app: tauri::AppHandle, on: bool) -> Result<ServerStatus, String
             model: cfg.model.clone(),
             nctx: cfg.nctx,
             port: cfg.port,
+            measured_tps: None,
         });
     }
 
@@ -143,17 +174,40 @@ fn server_toggle(app: tauri::AppHandle, on: bool) -> Result<ServerStatus, String
         "npu",
         "--nctx",
         &cfg.nctx.to_string(),
+        "--cache-type-k",
+        &cfg.cache_type_k,
+        "--cache-type-v",
+        &cfg.cache_type_v,
         "--host",
         &format!("127.0.0.1:{}", cfg.port),
     ]);
     ensure_geniex_env(&mut cmd);
     cmd.stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null());
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
 
-    let child = cmd
+    let mut child = cmd
         .spawn()
         .map_err(|e| format!("failed to start geniex: {}", e))?;
+    // Drain output in a background thread; keep a small tail for the log panel.
+    let stdout = child.stdout.take();
+    let stderr = child.stderr.take();
+    let state = app.state::<State>().inner().clone();
+    for stream in [stdout, stderr] {
+        if let Some(mut s) = stream {
+            std::thread::spawn(move || {
+                for line in s.by_lines() {
+                    if let Ok(l) = line {
+                        let mut guard = state.lock().unwrap();
+                        guard.log.push_back(l);
+                        while guard.log.len() > 400 {
+                            guard.log.pop_front();
+                        }
+                    }
+                }
+            });
+        }
+    }
     guard.child = Some(child);
 
     // Don't block the UI: report "warming" now. The frontend polls
@@ -163,23 +217,30 @@ fn server_toggle(app: tauri::AppHandle, on: bool) -> Result<ServerStatus, String
         model: cfg.model.clone(),
         nctx: cfg.nctx,
         port: cfg.port,
+        measured_tps: None,
     })
 }
 
 #[tauri::command]
-fn server_status() -> Result<ServerStatus, String> {
+fn server_status(app: tauri::AppHandle) -> Result<ServerStatus, String> {
     let cfg = load_config();
-    let state = if server_alive(&cfg) {
-        "running"
-    } else {
-        "stopped"
-    };
+    let state = app.state::<State>();
+    let guard = state.0.lock().unwrap();
+    let alive = server_alive(&cfg);
     Ok(ServerStatus {
-        state: state.into(),
+        state: if alive { "running" } else { "stopped" }.into(),
         model: cfg.model,
         nctx: cfg.nctx,
         port: cfg.port,
+        measured_tps: if alive { parse_tps(&guard.log) } else { None },
     })
+}
+
+#[tauri::command]
+fn log_tail(app: tauri::AppHandle) -> Result<Vec<String>, String> {
+    let state = app.state::<State>();
+    let guard = state.0.lock().unwrap();
+    Ok(guard.log.iter().rev().take(120).collect())
 }
 
 #[derive(Serialize, Clone)]
@@ -200,10 +261,16 @@ fn model_select(id: String, nctx: Option<u32>) -> Result<SelectResult, String> {
 }
 
 #[tauri::command]
-fn model_context(id: String, nctx: u32) -> Result<bool, String> {
+fn model_context(id: String, nctx: u32, cache_type_k: Option<String>, cache_type_v: Option<String>) -> Result<bool, String> {
     if id == load_config().model {
         let mut cfg = load_config();
         cfg.nctx = nctx;
+        if let Some(k) = cache_type_k {
+            cfg.cache_type_k = k;
+        }
+        if let Some(v) = cache_type_v {
+            cfg.cache_type_v = v;
+        }
         save_config(&cfg)?;
     }
     Ok(true)
@@ -400,10 +467,11 @@ fn doctor_run() -> Result<Vec<DoctorRow>, String> {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .manage(State(Mutex::new(ServerState { child: None })))
+        .manage(State(Mutex::new(ServerState { child: None, log: std::collections::VecDeque::new() })))
         .invoke_handler(tauri::generate_handler![
             server_toggle,
             server_status,
+            log_tail,
             model_select,
             model_context,
             config_get,
