@@ -74,7 +74,21 @@ fn save_config(c: &Config) -> Result<(), String> {
 }
 
 fn geniex_exe() -> std::path::PathBuf {
-    snack_home().join("geniex").join("geniex.exe")
+    // Installed layout (C:\Snack\geniex) first; fall back to the standalone
+    // GenieX installer location (C:\GenieX).
+    let primary = snack_home().join("geniex").join("geniex.exe");
+    if primary.exists() {
+        return primary;
+    }
+    std::path::PathBuf::from(r"C:\GenieX\geniex.exe")
+}
+
+/// Directory containing the plugin subdirs + geniex.dll (for GENIEX_PLUGIN_PATH).
+fn geniex_plugin_root() -> std::path::PathBuf {
+    if snack_home().join("geniex").join("geniex.exe").exists() {
+        return snack_home().join("geniex");
+    }
+    std::path::PathBuf::from(r"C:\GenieX")
 }
 
 fn base_url(cfg: &Config) -> String {
@@ -125,9 +139,9 @@ fn server_alive(cfg: &Config) -> bool {
 }
 
 fn ensure_geniex_env(cmd: &mut Command) {
-    let home = snack_home();
-    cmd.env("GENIEX_PLUGIN_PATH", home.join("geniex").to_string_lossy().to_string())
-        .current_dir(home.join("geniex"));
+    let root = geniex_plugin_root();
+    cmd.env("GENIEX_PLUGIN_PATH", root.to_string_lossy().to_string())
+        .current_dir(root);
 }
 
 // ---------------------------------------------------------------- commands
@@ -169,18 +183,18 @@ fn server_toggle(app: tauri::AppHandle, on: bool) -> Result<ServerStatus, String
     }
 
     let mut cmd = Command::new(geniex_exe());
+    // NOTE: GenieX v0.6.1 `serve` has no --cache-type-k/v flags (verified on
+    // device: "unknown flag"). KV quant is kept in config for the fit-estimate
+    // planning tool and will be applied once the runtime exposes it.
     cmd.args([
         "serve",
         "--compute",
         "npu",
         "--nctx",
         &cfg.nctx.to_string(),
-        "--cache-type-k",
-        &cfg.cache_type_k,
-        "--cache-type-v",
-        &cfg.cache_type_v,
         "--host",
         &format!("127.0.0.1:{}", cfg.port),
+        "--skip-update",
     ]);
     ensure_geniex_env(&mut cmd);
     cmd.stdin(Stdio::null())
@@ -409,13 +423,19 @@ fn doctor_run() -> Result<Vec<DoctorRow>, String> {
         fix: Some("Run SnackSetup.exe again.".into()),
     });
 
-    // 3. Model files present (both catalog entries).
+    // 3. Model files present: either the bundled C:\Snack\models layout or the
+    //    registered GenieX model cache (the installed-model path).
     let model_ids = ["qualcomm/Qwen3.8-4B", "qualcomm/Qwen3.8-9B"];
+    let cache_root = std::path::Path::new(&std::env::var("USERPROFILE").unwrap_or_default())
+        .join(".cache")
+        .join("geniex")
+        .join("models");
     let mut models_ok = true;
     for id in &model_ids {
         let dir_name = id.rsplit('/').next().unwrap_or(id);
-        let f = home.join("models").join(dir_name).join(format!("{}.gguf", dir_name));
-        if !f.exists() {
+        let bundled = home.join("models").join(dir_name).join(format!("{}.gguf", dir_name));
+        let registered = cache_root.join(dir_name).join(format!("{}.gguf", dir_name));
+        if !bundled.exists() && !registered.exists() {
             models_ok = false;
         }
     }
