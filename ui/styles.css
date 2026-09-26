@@ -292,7 +292,22 @@ body {
   background: var(--bg-elev); color: var(--fg); font-size: 16px; cursor: pointer; line-height: 1;
 }
 .ctx-stepper button:hover { border-color: var(--fg-faint); }
+.ctx-stepper button:disabled { opacity: 0.35; cursor: not-allowed; }
 .ctx-val { font-size: 13px; font-weight: 600; min-width: 44px; text-align: center; color: var(--accent); }
+
+/* KV-cache type + fit estimate */
+.kv-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.kv-pair { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; color: var(--fg-muted); }
+.kv-pair select {
+  font-family: var(--mono); font-size: 12px; font-weight: 600;
+  background: var(--bg-elev); color: var(--fg);
+  border: 1px solid var(--border); border-radius: 6px;
+  padding: 3px 6px; cursor: pointer;
+}
+.kv-pair select:hover { border-color: var(--fg-faint); }
+.fit-val { font-size: 12px; font-weight: 600; color: var(--fg-muted); }
+.fit-val b { color: var(--fg); }
+.fit-val.over { color: var(--danger); }
 .selected-badge { font-size: 11px; color: var(--accent); font-weight: 700; }
 
 /* ---------- developer ---------- */

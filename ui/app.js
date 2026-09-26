@@ -21,6 +21,8 @@ const CATALOG = [
     tps: 10.2,
     coldLoadS: 15,
     installed: true,
+    // transformer geometry, for the KV-cache estimate
+    layers: 36, kvHeads: 8, headDim: 128,
   },
   {
     id: 'qualcomm/Qwen3.8-9B',
@@ -31,10 +33,19 @@ const CATALOG = [
     tps: 7.1,
     coldLoadS: 30,
     installed: true,
+    layers: 36, kvHeads: 8, headDim: 128,
   },
 ];
 
-const CTX_STEPS = [8192, 16384, 32768, 65536];
+// context cap: 256k, however rough
+const CTX_STEPS = [8192, 16384, 32768, 65536, 131072, 262144];
+const CTX_MAX = CTX_STEPS[CTX_STEPS.length - 1];
+
+// KV-cache quant options: value = bytes per element (K and V quantized independently)
+const KV_TYPES = { 'F16': 2, 'Q8_0': 1, 'Q4_0': 0.5 };
+
+// device memory; demo mode = Surface Pro 11. Tauri mode: backend supplies the real figure.
+const DEVICE_MEM_GB = 16;
 
 // ---------- state ----------
 const state = {
@@ -42,10 +53,27 @@ const state = {
   serverState: 'stopped',   // stopped | warming | running
   selected: 'qualcomm/Qwen3.8-9B',
   ctx: { 'qualcomm/Qwen3.8-4B': 65536, 'qualcomm/Qwen3.8-9B': 65536 },
+  kv: {
+    'qualcomm/Qwen3.8-4B': { k: 'Q4_0', v: 'Q4_0' },
+    'qualcomm/Qwen3.8-9B': { k: 'Q4_0', v: 'Q4_0' },
+  },
   doctor: [],
 };
 
 function fmtCtx(n) { return (n / 1024) + 'k'; }
+
+// KV-cache estimate (GB): 2 (K+V) × layers × kvHeads × headDim × ctx × bytes
+function kvEstGB(m, ctx, bytes) {
+  return (2 * m.layers * m.kvHeads * m.headDim * ctx * bytes) / 1e9;
+}
+
+// total estimate: model file + KV(K) + KV(V)
+function fitEstimate(m) {
+  const ctx = state.ctx[m.id];
+  const kv = state.kv[m.id];
+  const kvGB = kvEstGB(m, ctx, KV_TYPES[kv.k]) + kvEstGB(m, ctx, KV_TYPES[kv.v]);
+  return m.sizeGB + kvGB;
+}
 
 // ---------- Tauri invoke helper (falls back to demo behavior) ----------
 async function invoke(cmd, args) {
@@ -72,7 +100,13 @@ function demoInvoke(cmd, args) {
           state.ctx[args.id] = args.nctx;
           return resolve({ ok: true });
         case 'config_get': {
-          const c = { model: state.selected, nctx: state.ctx[state.selected], port: 18181 };
+          const c = {
+            model: state.selected,
+            nctx: state.ctx[state.selected],
+            cacheTypeK: state.kv[state.selected].k,
+            cacheTypeV: state.kv[state.selected].v,
+            port: 18181,
+          };
           return resolve(c);
         }
         case 'doctor_run':
@@ -144,12 +178,24 @@ function renderModels() {
     const actions = document.createElement('div');
     actions.className = 'model-actions';
     if (m.installed) {
+      const kv = state.kv[m.id];
+      const fit = fitEstimate(m);
+      const over = fit > DEVICE_MEM_GB;
       actions.innerHTML =
         (isSel ? `<div class="selected-badge">running default</div>` : `<button class="btn small primary" data-select="${m.id}">Select</button>`) +
         `<div class="ctx-stepper">` +
-        `<button data-ctx-minus="${m.id}">−</button>` +
+        `<button data-ctx-minus="${m.id}" ${ctx <= CTX_STEPS[0] ? 'disabled' : ''}>−</button>` +
         `<span class="ctx-val" id="ctx-${cssSafe(m.id)}">${fmtCtx(ctx)}</span>` +
-        `<button data-ctx-plus="${m.id}">+</button>` +
+        `<button data-ctx-plus="${m.id}" ${ctx >= CTX_MAX ? 'disabled' : ''}>+</button>` +
+        `</div>` +
+        `<div class="kv-row">` +
+        `<span class="kv-pair">K <select data-kv-k="${m.id}">` +
+        Object.keys(KV_TYPES).map((t) => `<option ${kv.k === t ? 'selected' : ''}>${t}</option>`).join('') +
+        `</select></span>` +
+        `<span class="kv-pair">V <select data-kv-v="${m.id}">` +
+        Object.keys(KV_TYPES).map((t) => `<option ${kv.v === t ? 'selected' : ''}>${t}</option>`).join('') +
+        `</select></span>` +
+        `<span class="fit-val ${over ? 'over' : ''}">Fit: ${fit.toFixed(1)} / ${DEVICE_MEM_GB} GB</span>` +
         `</div>`;
     } else {
       actions.innerHTML = `<button class="btn small" disabled>Install</button>`;
@@ -202,8 +248,15 @@ async function stepCtx(id, dir) {
   let i = CTX_STEPS.indexOf(cur);
   i = Math.max(0, Math.min(CTX_STEPS.length - 1, i + dir));
   const n = CTX_STEPS[i];
+  if (n === cur) return;
   await invoke('model_context', { id, nctx: n });
   state.ctx[id] = n;
+  renderStatus();
+  if (id === state.selected) renderConfig();
+}
+
+async function setKVType(id, which, type) {
+  state.kv[id][which] = type;
   renderStatus();
   if (id === state.selected) renderConfig();
 }
@@ -249,7 +302,12 @@ document.addEventListener('DOMContentLoaded', () => {
   // theme toggle (persisted; ?theme= override for screenshots; defaults to system preference)
   let saved = null;
   try { saved = localStorage.getItem('snack-theme'); } catch (e) { /* ignore */ }
-  const qTheme = new URLSearchParams(location.search).get('theme');
+  const qs = new URLSearchParams(location.search);
+  const qTheme = qs.get('theme');
+  const qCtx = qs.get('ctx');
+  if (qCtx && CTX_STEPS.includes(+qCtx)) {
+    for (const id of Object.keys(state.ctx)) state.ctx[id] = +qCtx;
+  }
   const systemDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
   applyTheme(qTheme === 'dark' || qTheme === 'light' ? qTheme : (saved || (systemDark ? 'dark' : 'light')));
   document.getElementById('themeToggle').addEventListener('click', () => {
@@ -292,6 +350,12 @@ document.addEventListener('DOMContentLoaded', () => {
     if (plus) { stepCtx(plus.dataset.ctxPlus, +1); return; }
     const minus = e.target.closest('[data-ctx-minus]');
     if (minus) { stepCtx(minus.dataset.ctxMinus, -1); return; }
+  });
+  document.getElementById('modelList').addEventListener('change', (e) => {
+    const kSel = e.target.closest('[data-kv-k]');
+    if (kSel) { setKVType(kSel.dataset.kvK, 'k', kSel.value); return; }
+    const vSel = e.target.closest('[data-kv-v]');
+    if (vSel) { setKVType(vSel.dataset.kvV, 'v', vSel.value); return; }
   });
 
   // initial paint
