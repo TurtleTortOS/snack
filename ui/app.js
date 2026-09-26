@@ -238,8 +238,25 @@ async function copyText(text) {
   if (el) { const t = el.textContent; el.textContent = 'Copied'; setTimeout(() => { el.textContent = t; }, 1000); }
 }
 
+// ---------- theme ----------
+function applyTheme(t) {
+  document.documentElement.setAttribute('data-theme', t);
+  try { localStorage.setItem('snack-theme', t); } catch (e) { /* ignore */ }
+}
+
 // ---------- wiring ----------
 document.addEventListener('DOMContentLoaded', () => {
+  // theme toggle (persisted; ?theme= override for screenshots; defaults to system preference)
+  let saved = null;
+  try { saved = localStorage.getItem('snack-theme'); } catch (e) { /* ignore */ }
+  const qTheme = new URLSearchParams(location.search).get('theme');
+  const systemDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  applyTheme(qTheme === 'dark' || qTheme === 'light' ? qTheme : (saved || (systemDark ? 'dark' : 'light')));
+  document.getElementById('themeToggle').addEventListener('click', () => {
+    const cur = document.documentElement.getAttribute('data-theme');
+    applyTheme(cur === 'dark' ? 'light' : 'dark');
+  });
+
   // tabs
   document.querySelectorAll('.tab').forEach((t) => {
     t.addEventListener('click', () => {
