@@ -8,8 +8,9 @@
 //!   C:\Snack\models\<Id>\<Id>.gguf    one dir per model (load-bearing)
 //!   C:\Snack\config.json              { model, nctx, port }
 
+use std::io::{BufRead, BufReader};
 use std::process::{Command, Stdio};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
@@ -54,7 +55,7 @@ struct ServerState {
     log: std::collections::VecDeque<String>, // tail of geniex output
 }
 
-struct State(Mutex<ServerState>);
+struct State(Arc<Mutex<ServerState>>);
 
 fn config_path() -> std::path::PathBuf {
     snack_home().join("config.json")
@@ -189,24 +190,50 @@ fn server_toggle(app: tauri::AppHandle, on: bool) -> Result<ServerStatus, String
     let mut child = cmd
         .spawn()
         .map_err(|e| format!("failed to start geniex: {}", e))?;
-    // Drain output in a background thread; keep a small tail for the log panel.
+    // Drain output in background threads; keep a small tail for the log panel.
+    let state = app.state::<State>().0.clone();
+    let state_err = state.clone();
     let stdout = child.stdout.take();
     let stderr = child.stderr.take();
-    let state = app.state::<State>().inner().clone();
-    for stream in [stdout, stderr] {
-        if let Some(mut s) = stream {
-            std::thread::spawn(move || {
-                for line in s.by_lines() {
-                    if let Ok(l) = line {
+    if let Some(s) = stdout {
+        std::thread::spawn(move || {
+            let mut reader = BufReader::new(s);
+            let mut buf = String::new();
+            loop {
+                buf.clear();
+                match reader.read_line(&mut buf) {
+                    Ok(0) => break,
+                    Ok(_) => {
                         let mut guard = state.lock().unwrap();
-                        guard.log.push_back(l);
+                        guard.log.push_back(buf.trim_end().to_string());
                         while guard.log.len() > 400 {
                             guard.log.pop_front();
                         }
                     }
+                    Err(_) => break,
                 }
-            });
-        }
+            }
+        });
+    }
+    if let Some(s) = stderr {
+        std::thread::spawn(move || {
+            let mut reader = BufReader::new(s);
+            let mut buf = String::new();
+            loop {
+                buf.clear();
+                match reader.read_line(&mut buf) {
+                    Ok(0) => break,
+                    Ok(_) => {
+                        let mut guard = state_err.lock().unwrap();
+                        guard.log.push_back(buf.trim_end().to_string());
+                        while guard.log.len() > 400 {
+                            guard.log.pop_front();
+                        }
+                    }
+                    Err(_) => break,
+                }
+            }
+        });
     }
     guard.child = Some(child);
 
@@ -240,7 +267,7 @@ fn server_status(app: tauri::AppHandle) -> Result<ServerStatus, String> {
 fn log_tail(app: tauri::AppHandle) -> Result<Vec<String>, String> {
     let state = app.state::<State>();
     let guard = state.0.lock().unwrap();
-    Ok(guard.log.iter().rev().take(120).collect())
+    Ok(guard.log.iter().rev().take(120).cloned().collect())
 }
 
 #[derive(Serialize, Clone)]
@@ -467,7 +494,7 @@ fn doctor_run() -> Result<Vec<DoctorRow>, String> {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .manage(State(Mutex::new(ServerState { child: None, log: std::collections::VecDeque::new() })))
+        .manage(State(std::sync::Arc::new(Mutex::new(ServerState { child: None, log: std::collections::VecDeque::new() }))))
         .invoke_handler(tauri::generate_handler![
             server_toggle,
             server_status,
