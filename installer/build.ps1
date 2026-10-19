@@ -87,7 +87,14 @@ if (-not $iscc) {
     exit 1
   }
 }
-& (if ($iscc -is [string]) { $iscc } else { $iscc.Source }) "$root\installer\setup.iss"
+$isccArgs = @()
+$modelsBundled = (Test-Path (Join-Path $PSScriptRoot 'runtime\Qwen3.8-4B.gguf')) -and
+                 (Test-Path (Join-Path $PSScriptRoot 'runtime\Qwen3.8-9B.gguf'))
+if (-not $modelsBundled) {
+  Write-Host "  models not in runtime/ -> building WITHOUT bundled models (in-app download)"
+  $isccArgs += '/DNO_MODELS=1'
+}
+& (if ($iscc -is [string]) { $iscc } else { $iscc.Source }) $isccArgs "$root\installer\setup.iss"
 if ($LASTEXITCODE -ne 0) { Write-Host "  ISCC failed"; exit 1 }
 Write-Host ""
 Write-Host "=== DONE: $root\dist\SnackSetup.exe ==="

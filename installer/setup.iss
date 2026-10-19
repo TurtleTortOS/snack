@@ -18,6 +18,9 @@
 #define SnackHome "C:\Snack"
 #define GenieXVer "v0.8.0"
 
+; Model bundling is optional: build.ps1 passes /DNO_MODELS=1 when runtime\*.gguf
+; are absent (models are then fetched in-app from HuggingFace, TurtleTortOS/snack-models).
+
 [Setup]
 AppId={{8C6F2A41-9E3D-4B7A-B2F5-1D0E6C4A9B31}
 AppName={#MyAppName}
@@ -37,7 +40,9 @@ PrivilegesRequiredOverridesAllowed=dialog
 [Types]
 ; First entry is the default type. "custom" lets the user toggle model checkboxes.
 Name: "basic"; Description: "Basic (SNACK + GenieX + harness, download models later)"
+#ifndef NO_MODELS
 Name: "full"; Description: "Full install (SNACK + GenieX + harness + Models)"
+#endif
 Name: "custom"; Description: "Custom"; Flags: iscustom
 
 [Tasks]
@@ -47,11 +52,17 @@ Name: "harness_pi"; Description: "Pi (pi.dev) — minimal terminal coding harnes
 Name: "harness_dsh"; Description: "DeepSeek Harness (dsh) — web-UI agent harness (needs Node.js)"; Flags: exclusive
 
 [Components]
+#ifndef NO_MODELS
 Name: "app"; Description: "SNACK app"; Types: full basic; Flags: fixed
 Name: "geniex"; Description: "GenieX runtime {#GenieXVer}"; Types: full basic; Flags: fixed
 Name: "model4b"; Description: "Qwen3.8-4B model (~2.4 GB) — FAST"; Types: full
 Name: "model9b"; Description: "Qwen3.8-9B model (~5.1 GB) — SMART"; Types: full
 Name: "scripts"; Description: "Doctor + helper scripts"; Types: full basic; Flags: fixed
+#else
+Name: "app"; Description: "SNACK app"; Types: basic; Flags: fixed
+Name: "geniex"; Description: "GenieX runtime {#GenieXVer}"; Types: basic; Flags: fixed
+Name: "scripts"; Description: "Doctor + helper scripts"; Types: basic; Flags: fixed
+#endif
 
 [Files]
 ; SNACK app
@@ -59,8 +70,10 @@ Source: "..\src-tauri\target\release\{#MyAppExeName}"; DestDir: "{#SnackHome}"; 
 ; GenieX runtime installer
 Source: "runtime\geniex-cli-setup.exe"; DestDir: "C:\Snack\staging"; Flags: deleteafterinstall
 ; Models — one per directory, file named <ModelId>.gguf (LOAD-BEARING layout)
+#ifndef NO_MODELS
 Source: "runtime\Qwen3.8-4B.gguf"; DestDir: "{#SnackHome}\models\Qwen3.8-4B"; Flags: ignoreversion; Components: model4b
 Source: "runtime\Qwen3.8-9B.gguf"; DestDir: "{#SnackHome}\models\Qwen3.8-9B"; Flags: ignoreversion; Components: model9b
+#endif
 ; doctor + helper scripts
 Source: "scripts\doctor.ps1"; DestDir: "{#SnackHome}\scripts"; Flags: ignoreversion
 Source: "scripts\register-models.ps1"; DestDir: "{#SnackHome}\scripts"; Flags: ignoreversion
@@ -85,7 +98,9 @@ Filename: "{sysnative}\npm.cmd"; Parameters: "install -g @deepseek-ai/dsh"; Stat
 ;     choice in C:\Snack\config.json
 Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{#SnackHome}\scripts\configure-harness.ps1"" -Harness {code:GetHarnessName}"; StatusMsg: "Configuring harness endpoint..."; Flags: runhidden waituntilidle; Tasks: harness_pi harness_dsh
 ; 3. Register models in the GenieX model manager (only if models are selected)
+#ifndef NO_MODELS
 Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{#SnackHome}\scripts\register-models.ps1"""; StatusMsg: "Registering models..."; Flags: runhidden waituntilidle; Components: model4b model9b
+#endif
 ; 4. Doctor — end on the green checklist
 Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{#SnackHome}\scripts\doctor.ps1"""; Description: "Run SNACK Doctor (recommended)"; Flags: postinstall nowait skipifsilent
 
