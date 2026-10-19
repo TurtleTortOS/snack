@@ -46,10 +46,12 @@ Name: "full"; Description: "Full install (SNACK + GenieX + harness + Models)"
 Name: "custom"; Description: "Custom"; Flags: iscustom
 
 [Tasks]
-; Exactly one harness (exclusive siblings = mutually exclusive checkboxes).
-Name: "harness_hermes"; Description: "Hermes Agent (Nous Research) — recommended default"; GroupDescription: "Chat harness (pick one):"; Flags: exclusive
-Name: "harness_pi"; Description: "Pi (pi.dev) — minimal terminal coding harness (needs Node.js)"; Flags: exclusive
-Name: "harness_dsh"; Description: "DeepSeek Harness (dsh) — web-UI agent harness (needs Node.js)"; Flags: exclusive
+; Exactly one harness: exclusive siblings sharing one GroupDescription render as
+; a single radio group. (Different/missing GroupDescription splits them into
+; separate categories - Hermes would show as its own checkbox.)
+Name: "harness_hermes"; GroupDescription: "Chat harness (pick one):"; Description: "Hermes Agent (Nous Research) - full-featured AI chat app: chat sessions, long-term memory, tools, file access. Use case: the easiest way to talk to the model running on the NPU. Recommended default."; Flags: exclusive
+Name: "harness_pi"; GroupDescription: "Chat harness (pick one):"; Description: "Pi (pi.dev) - minimal terminal coding agent: fast TUI, aggressively extensible, branchable session trees. Use case: coding and terminal work on the NPU model. Installs Node.js automatically; preconfigured for the SNACK models, no API key needed."; Flags: exclusive
+Name: "harness_dsh"; GroupDescription: "Chat harness (pick one):"; Description: "DeepSeek Harness (dsh) - DeepSeek's open-source agent with a browser UI: chat, coding, file/data tasks, plugins. Use case: a web-based agent workspace (opens at 127.0.0.1:3080). Installs Node.js automatically; preconfigured for the SNACK models, no API key needed."; Flags: exclusive
 
 [Components]
 #ifndef NO_MODELS
