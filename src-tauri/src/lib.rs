@@ -150,6 +150,17 @@ fn ensure_geniex_env(cmd: &mut Command) {
         .current_dir(root);
 }
 
+/// Suppress the console window of spawned child processes on Windows
+/// (CREATE_NO_WINDOW). No-op elsewhere.
+#[cfg(windows)]
+fn no_window(cmd: &mut Command) {
+    use std::os::windows::process::CommandExt;
+    cmd.creation_flags(0x0800_0000);
+}
+
+#[cfg(not(windows))]
+fn no_window(_cmd: &mut Command) {}
+
 // ---------------------------------------------------------------- update check
 
 const GITHUB_REPO: &str = "TurtleTortOS/snack";
@@ -372,9 +383,10 @@ fn server_toggle(app: tauri::AppHandle, on: bool) -> Result<ServerStatus, String
     }
 
     let mut cmd = Command::new(geniex_exe());
-    // NOTE: GenieX v0.6.1 `serve` has no --cache-type-k/v flags (verified on
-    // device: "unknown flag"). KV quant is kept in config for the fit-estimate
-    // planning tool and will be applied once the runtime exposes it.
+    no_window(&mut cmd);
+    // NOTE: GenieX `serve` has no --cache-type-k/v flags (verified on device:
+    // "unknown flag"). KV quant is kept in config for the fit-estimate planning
+    // tool and will be applied once the runtime exposes it.
     cmd.args([
         "serve",
         "--compute",
@@ -530,6 +542,7 @@ fn models_reregister() -> Result<bool, String> {
                 continue;
             }
             let mut cmd = Command::new(geniex_exe());
+            no_window(&mut cmd);
             cmd.args([
                 "pull",
                 &id,
@@ -628,16 +641,18 @@ fn doctor_run() -> Result<Vec<DoctorRow>, String> {
 
     // 1. NPU present: look for Qualcomm Hexagon in the device list.
     let mut npu = false;
-    if let Ok(out) = Command::new("powershell")
-        .args([
+    {
+        let mut cmd = Command::new("powershell");
+        no_window(&mut cmd);
+        cmd.args([
             "-NoProfile",
             "-Command",
             "Get-PnpDevice -PresentOnly -ErrorAction SilentlyContinue | Where-Object { $_.FriendlyName -match 'Hexagon|Qualcomm' } | Select-Object -First 1 -ExpandProperty FriendlyName",
-        ])
-        .output()
-    {
-        let s = String::from_utf8_lossy(&out.stdout);
-        npu = !s.trim().is_empty();
+        ]);
+        if let Ok(out) = cmd.output() {
+            let s = String::from_utf8_lossy(&out.stdout);
+            npu = !s.trim().is_empty();
+        }
     }
     rows.push(DoctorRow {
         name: "NPU present".into(),
@@ -766,14 +781,13 @@ fn doctor_run() -> Result<Vec<DoctorRow>, String> {
 }
 
 /// True if an executable resolves on PATH (where.exe lookup).
-fn server_cmd_exists(cmd: &str) -> bool {
-    Command::new("where.exe")
-        .arg(cmd)
+fn server_cmd_exists(cmd_name: &str) -> bool {
+    let mut cmd = Command::new("where.exe");
+    no_window(&mut cmd);
+    cmd.arg(cmd_name)
         .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status()
-        .map(|s| s.success())
-        .unwrap_or(false)
+        .stderr(Stdio::null());
+    cmd.status().map(|s| s.success()).unwrap_or(false)
 }
 
 // ---------------------------------------------------------------- run
