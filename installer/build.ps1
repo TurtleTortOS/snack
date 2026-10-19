@@ -77,13 +77,17 @@ Write-Host "  OK: snack.exe"
 Write-Host "=== 3. compile Inno setup ==="
 $iscc = Get-Command ISCC.exe -ErrorAction SilentlyContinue
 if (-not $iscc) {
-  $cand = 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe'
-  if (Test-Path $cand) { $iscc = $cand } else {
-    Write-Host "  ISCC.exe not found — install Inno Setup 6 (winget install JRSoftware.InnoSetup)"
+  foreach ($cand in 'C:\Program Files\Inno Setup 7\ISCC.exe',
+                    'C:\Program Files (x86)\Inno Setup 7\ISCC.exe',
+                    'C:\Program Files (x86)\Inno Setup 6\ISCC.exe') {
+    if (Test-Path $cand) { $iscc = $cand; break }
+  }
+  if (-not $iscc) {
+    Write-Host "  ISCC.exe not found — install Inno Setup (winget install JRSoftware.InnoSetup)"
     exit 1
   }
 }
-& (if (Test-Path $iscc) { $iscc } else { $iscc.Source }) "$root\installer\setup.iss"
+& (if ($iscc -is [string]) { $iscc } else { $iscc.Source }) "$root\installer\setup.iss"
 if ($LASTEXITCODE -ne 0) { Write-Host "  ISCC failed"; exit 1 }
 Write-Host ""
 Write-Host "=== DONE: $root\dist\SnackSetup.exe ==="
