@@ -94,7 +94,8 @@ if (-not $modelsBundled) {
   Write-Host "  models not in runtime/ -> building WITHOUT bundled models (in-app download)"
   $isccArgs += '/DNO_MODELS=1'
 }
-& (if ($iscc -is [string]) { $iscc } else { $iscc.Source }) $isccArgs "$root\installer\setup.iss"
+$isccPath = if ($iscc -is [string]) { $iscc } else { $iscc.Source }
+& $isccPath @isccArgs "$root\installer\setup.iss"
 if ($LASTEXITCODE -ne 0) { Write-Host "  ISCC failed"; exit 1 }
 Write-Host ""
 Write-Host "=== DONE: $root\dist\SnackSetup.exe ==="
