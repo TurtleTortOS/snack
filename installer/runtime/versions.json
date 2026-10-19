@@ -2,24 +2,36 @@
   "note": "Pinned artifacts for SnackSetup.exe. SHA256 values must be filled with the real hashes of the exact files in runtime/ before building the installer. Never build from an unfilled versions.json.",
   "geniex_cli_setup": {
     "file": "runtime/geniex-cli-setup.exe",
-    "url": "https://github.com/qualcomm/GenieX/releases",
-    "version": "0.6.1",
-    "sha256": "FILL_BEFORE_BUILD"
+    "url": "https://github.com/qualcomm/GenieX/releases/download/v0.8.0/geniex-cli-setup-windows-arm64-v0.8.0.exe",
+    "version": "0.8.0",
+    "sha256": "FCC4D932F371A9B3AD3D08A1B34912FE21A7FDF7C54D47C869250B50D81EC734"
   },
-  "hermes_setup": {
-    "file": "runtime/Hermes-Setup.exe",
-    "url": "https://hermes-agent.nousresearch.com (Windows ARM64)",
-    "version": "FILL",
-    "sha256": "FILL_BEFORE_BUILD"
+  "hermes": {
+    "method": "install_script",
+    "url": "https://hermes-agent.nousresearch.com/install.ps1",
+    "version": "latest"
+  },
+  "pi": {
+    "method": "install_script",
+    "url": "https://pi.dev/install.ps1",
+    "version": "latest"
+  },
+  "dsh": {
+    "method": "npm_global",
+    "package": "@deepseek-ai/dsh",
+    "url": "https://www.npmjs.com/package/@deepseek-ai/dsh",
+    "version": "latest"
   },
   "model_4b": {
     "file": "runtime/Qwen3.8-4B.gguf",
-    "url": "https://huggingface.co/TurtleTortOS/snack-models (Qwen3.8-4B-Q4_0)",
-    "sha256": "FILL_BEFORE_BUILD"
+    "url": "https://huggingface.co/TurtleTortOS/snack-models/resolve/main/Qwen3.8-4B.gguf",
+    "sha256": "3F3EFEC9F9EE79B5A5D6845FC449BE30E3474D737006877165854DBD763D2AD0",
+    "optional": true
   },
   "model_9b": {
     "file": "runtime/Qwen3.8-9B.gguf",
-    "url": "https://huggingface.co/TurtleTortOS/snack-models (Qwen3.8-9B-Q4_0)",
-    "sha256": "FILL_BEFORE_BUILD"
+    "url": "https://huggingface.co/TurtleTortOS/snack-models/resolve/main/Qwen3.8-9B.gguf",
+    "sha256": "E90D41339734A60063DD7E6BFDE77184DC96AA2EF5503D4DBD20548DA9FCCB4C",
+    "optional": true
   }
 }

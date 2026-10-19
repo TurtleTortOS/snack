@@ -11,3 +11,6 @@ Thumbs.db
 # local state
 *.log
 .env
+
+# installer build output
+dist/

@@ -50,9 +50,34 @@ if ($alive) {
 }
 Add 'Inference smoke test' $smoke "Server down or model failed to load — see server log"
 
-# 7. Hermes installed
-$hermesOk = Test-Path (Join-Path $env:USERPROFILE 'AppData\Local\hermes')
-Add 'Hermes installed' $hermesOk "Install Hermes (SnackSetup or the Hermes installer)"
+# 7. Harness installed (choice recorded in C:\Snack\config.json; default hermes)
+$harness = 'hermes'
+$cfgPath = 'C:\Snack\config.json'
+if (Test-Path $cfgPath) {
+  try {
+    $c = Get-Content $cfgPath -Raw | ConvertFrom-Json
+    if ($c.harness) { $harness = $c.harness }
+  } catch { }
+}
+$npmBin = Join-Path $env:APPDATA 'npm'
+switch ($harness) {
+  'pi' {
+    $hOk = (Get-Command pi -ErrorAction SilentlyContinue) -or (Test-Path (Join-Path $npmBin 'pi.cmd'))
+    Add 'Pi harness installed' $hOk "Install Pi via SnackSetup (choose Pi) or: irm https://pi.dev/install.ps1 | iex"
+    $nodeOk = [bool](Get-Command node -ErrorAction SilentlyContinue)
+    Add 'Node.js present (harness)' $nodeOk 'Install Node.js 22+ (SnackSetup does it automatically for Pi/DeepSeek)'
+  }
+  'dsh' {
+    $hOk = (Get-Command dsh -ErrorAction SilentlyContinue) -or (Test-Path (Join-Path $npmBin 'dsh.cmd'))
+    Add 'DeepSeek Harness installed' $hOk "Install via SnackSetup (choose DeepSeek) or: npm install -g @deepseek-ai/dsh"
+    $nodeOk = [bool](Get-Command node -ErrorAction SilentlyContinue)
+    Add 'Node.js present (harness)' $nodeOk 'Install Node.js 22+ (SnackSetup does it automatically for Pi/DeepSeek)'
+  }
+  default {
+    $hOk = Test-Path (Join-Path $env:USERPROFILE 'AppData\Local\hermes')
+    Add 'Hermes installed' $hOk "Install Hermes (SnackSetup or the Hermes installer)"
+  }
+}
 
 # render
 $fail = 0

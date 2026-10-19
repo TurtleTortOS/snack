@@ -60,7 +60,16 @@ const state = {
   },
   doctor: [],
   measuredTps: null, // last decode rate reported by the server
+  harness: 'hermes', // hermes | pi | dsh
+  dl: {}, // model_id -> { status, progress }
 };
+
+const HARNESS_COPY = {
+  hermes: "Talk to the model you've selected in Hermes, the chat harness bundled with SNACK.",
+  pi: "Talk to the model you've selected in Pi, the minimal terminal harness — pre-pointed at the SNACK endpoint.",
+  dsh: "Talk to the model you've selected in DeepSeek Harness, the web-UI agent — pre-pointed at the SNACK endpoint.",
+};
+const HARNESS_NAME = { hermes: 'Hermes', pi: 'Pi', dsh: 'DeepSeek Harness' };
 
 function fmtCtx(n) { return (n / 1024) + 'k'; }
 
@@ -116,6 +125,7 @@ function demoInvoke(cmd, args) {
             cacheTypeK: state.kv[state.selected].k,
             cacheTypeV: state.kv[state.selected].v,
             port: 18181,
+            harness: state.harness,
           };
           return resolve(c);
         }
@@ -127,12 +137,30 @@ function demoInvoke(cmd, args) {
             { name: 'Model manager IDs registered', pass: true },
             { name: 'Server on port 18181', pass: state.serverOn },
             { name: 'Inference smoke test', pass: state.serverOn },
-            { name: 'Hermes reachable', pass: true },
+            { name: HARNESS_NAME[state.harness] + ' harness installed', pass: true },
           ]);
         case 'models_reregister':
           return resolve({ ok: true });
         case 'chat_launch':
           return resolve({ launched: true });
+        case 'harness_select':
+          state.harness = args.harness;
+          return resolve(args.harness);
+        case 'model_download':
+          state.dl[args.model_id] = { status: 'downloading', progress: 0 };
+          return resolve({ modelId: args.model_id, status: 'downloading', progress: 0 });
+        case 'model_download_progress': {
+          const d = state.dl[args.model_id];
+          if (!d) return resolve({ modelId: args.model_id, status: 'idle', progress: null });
+          d.progress = Math.min(1, d.progress + 0.12);
+          if (d.progress >= 1) { d.status = 'complete'; }
+          return resolve({ modelId: args.model_id, status: d.status, progress: d.progress });
+        }
+        case 'check_for_updates':
+          return resolve({
+            currentVersion: '0.2.0', latestTag: 'v0.2.0', latestPublished: '—',
+            hasUpdate: false, downloadUrl: null, releaseUrl: 'https://github.com/TurtleTortOS/snack/releases',
+          });
         default:
           return resolve(null);
       }
@@ -226,9 +254,21 @@ function renderModels() {
         `</div>` +
         `</div>`;
     } else {
-      controls.innerHTML =
-        `<div class="info-box" data-tip="Not installed yet.">?</div>` +
-        `<div class="model-actions"><button class="btn small" disabled>Install</button></div>`;
+      const d = state.dl[m.id];
+      if (d && d.status === 'downloading') {
+        const pct = Math.round((d.progress || 0) * 100);
+        controls.innerHTML =
+          `<div class="info-box" data-tip="Downloading from TurtleTortOS/snack-models on HuggingFace.">…</div>` +
+          `<div class="model-actions"><span class="selected-badge">downloading ${pct}%</span></div>`;
+      } else if (d && d.status === 'error') {
+        controls.innerHTML =
+          `<div class="info-box over" data-tip="${d.error || 'Download failed — try again.'}">!</div>` +
+          `<div class="model-actions"><button class="btn small primary" data-download="${m.id}">Retry download</button></div>`;
+      } else {
+        controls.innerHTML =
+          `<div class="info-box" data-tip="Not installed yet — downloads from HuggingFace (TurtleTortOS/snack-models).">?</div>` +
+          `<div class="model-actions"><button class="btn small primary" data-download="${m.id}">Download</button></div>`;
+      }
     }
     card.appendChild(main);
     card.appendChild(controls);
@@ -255,6 +295,13 @@ function renderDoctor() {
 async function renderConfig() {
   const c = await invoke('config_get');
   document.getElementById('configPre').textContent = JSON.stringify(c, null, 2);
+  // sync the harness picker + Chat copy from the persisted config
+  if (c && c.harness && HARNESS_COPY[c.harness]) {
+    state.harness = c.harness;
+    const sel = document.getElementById('harnessSelect');
+    if (sel) sel.value = c.harness;
+    document.getElementById('launchCopy').textContent = HARNESS_COPY[c.harness];
+  }
 }
 
 // ---------- actions ----------
@@ -309,9 +356,60 @@ async function launchChat() {
   if (IN_TAURI) {
     await invoke('chat_launch');
   } else {
-    alert('In the desktop app this opens Hermes, pointed at the selected model (' +
+    alert('In the desktop app this opens ' + HARNESS_NAME[state.harness] + ', pointed at the selected model (' +
       CATALOG.find((m) => m.id === state.selected).name + ').');
   }
+}
+
+async function selectHarness(h) {
+  state.harness = h;
+  document.getElementById('launchCopy').textContent = HARNESS_COPY[h];
+  await invoke('harness_select', { harness: h });
+}
+
+async function startDownload(id) {
+  state.dl[id] = { status: 'downloading', progress: 0 };
+  await invoke('model_download', { model_id: id });
+  renderModels();
+  const timer = setInterval(async () => {
+    const s = await invoke('model_download_progress', { model_id: id });
+    if (!s || s.status === 'downloading') {
+      state.dl[id] = { status: 'downloading', progress: s && s.progress != null ? s.progress : 0 };
+      renderModels();
+      return;
+    }
+    clearInterval(timer);
+    if (s.status === 'complete') {
+      const m = CATALOG.find((x) => x.id === id);
+      if (m) m.installed = true;
+      delete state.dl[id];
+      await invoke('models_reregister');
+    } else {
+      state.dl[id] = { status: 'error', progress: null, error: s.error || 'download failed' };
+    }
+    renderModels();
+  }, 800);
+}
+
+async function checkUpdates() {
+  const btn = document.getElementById('checkUpdates');
+  const info = document.getElementById('updateInfo');
+  btn.disabled = true;
+  btn.textContent = 'Checking…';
+  try {
+    const u = await invoke('check_for_updates');
+    if (!u) { info.textContent = 'Update check unavailable in demo mode.'; }
+    else if (u.hasUpdate) {
+      info.innerHTML = 'Update available: ' + u.latestTag + ' (published ' + (u.latestPublished || '').slice(0, 10) + ') — ' +
+        (u.downloadUrl ? '<a href="' + u.downloadUrl + '">download SnackSetup.exe</a>' : '<a href="' + u.releaseUrl + '">open the release</a>');
+    } else {
+      info.textContent = 'Up to date — ' + (u.latestTag || u.currentVersion) + ' is the latest release.';
+    }
+  } catch (e) {
+    info.textContent = 'Update check failed: ' + e;
+  }
+  btn.disabled = false;
+  btn.textContent = 'Check for updates';
 }
 
 async function copyText(text) {
@@ -363,6 +461,11 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('launchChat').addEventListener('click', launchChat);
   document.getElementById('runDoctor').addEventListener('click', runDoctor);
   document.getElementById('reRegister').addEventListener('click', reRegister);
+  document.getElementById('checkUpdates').addEventListener('click', checkUpdates);
+
+  // harness picker (Chat card)
+  const harnessSel = document.getElementById('harnessSelect');
+  harnessSel.addEventListener('change', () => selectHarness(harnessSel.value));
 
   // copy buttons
   document.querySelectorAll('[data-copy]').forEach((b) => {
@@ -376,6 +479,8 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('modelList').addEventListener('click', (e) => {
     const sel = e.target.closest('[data-select]');
     if (sel) { selectModel(sel.dataset.select); return; }
+    const dl = e.target.closest('[data-download]');
+    if (dl) { startDownload(dl.dataset.download); return; }
     const plus = e.target.closest('[data-ctx-plus]');
     if (plus) { stepCtx(plus.dataset.ctxPlus, +1); return; }
     const minus = e.target.closest('[data-ctx-minus]');

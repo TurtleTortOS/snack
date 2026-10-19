@@ -49,5 +49,15 @@ Doctor render and interact.
 2. Toggle on → `warming`, then `running` (~30 s) with GenieX server live on 18181.
 3. Models → Select 4B → `warming` → `running`; `/v1/models` still lists both IDs.
 4. System → Run Doctor → all green (server-dependent rows green only while on).
-5. Launch Chat → Hermes opens, pointed at the selected model.
+5. Chat card → pick a harness → Launch Chat → the harness opens, pointed at the
+   selected model (Pi: console with `snack-npu` models; dsh: Web UI on 3080).
 6. Toggle off → `stopped`, `geniex.exe` no longer in the process list.
+
+## Installer build (SnackSetup.exe)
+
+```powershell
+# on the Surface, after `cargo tauri build`:
+winget install JRSoftware.InnoSetup   # Inno Setup 6 (6.3+ for exclusive task groups)
+powershell -File installer\build.ps1  # verifies SHA256 pins, compiles installer\setup.iss
+# output: dist\SnackSetup.exe
+```

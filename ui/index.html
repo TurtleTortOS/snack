@@ -79,7 +79,14 @@
 
         <div class="card launch-card">
           <div class="card-title">Chat</div>
-          <p class="launch-copy">Talk to the model you've selected in Hermes, the chat app bundled with SNACK.</p>
+          <p class="launch-copy" id="launchCopy">Talk to the model you've selected in Hermes, the chat harness bundled with SNACK.</p>
+          <div class="stepper-row" style="margin: 10px 0;">
+            <span class="kv-pair">Harness <select id="harnessSelect">
+              <option value="hermes">Hermes</option>
+              <option value="pi">Pi</option>
+              <option value="dsh">DeepSeek Harness</option>
+            </select></span>
+          </div>
           <button id="launchChat" class="btn primary">Launch Chat</button>
           <p class="hint">If a model was just selected it may take ~15–30&nbsp;s to warm up on the first message.</p>
         </div>
@@ -186,11 +193,11 @@
       <div class="card">
         <div class="card-title">SNACK</div>
         <p class="about-lead">Snapdragon NPU AI Chat Kit</p>
-        <p>SNACK runs an open-weight model on the device's NPU via Qualcomm's GenieX runtime, and exposes it through a standard OpenAI-compatible endpoint on <code>127.0.0.1:18181</code>. I designed it to be used via the bundled Hermes app, though you can point any harness to the endpoint.</p>
+        <p>SNACK runs an open-weight model on the device's NPU via Qualcomm's GenieX runtime, and exposes it through a standard OpenAI-compatible endpoint on <code>127.0.0.1:18181</code>. I designed it to be used via a bundled chat harness — Hermes, Pi, or DeepSeek Harness (pick one in the installer, switch anytime in the Chat card) — though you can point any harness to the endpoint.</p>
         <p>SNACK is the control center for starting the server, choosing the model, and setting context.</p>
         <div class="about-facts">
           <div class="fact"><span>Target</span><span>Microsoft Surface, Snapdragon X Plus (X1P42100), Windows ARM64, 16&nbsp;GB</span></div>
-          <div class="fact"><span>Runtime</span><span>GenieX 0.6.1 (BSD-3-Clause)</span></div>
+          <div class="fact"><span>Runtime</span><span>GenieX 0.8.0 (BSD-3-Clause)</span></div>
           <div class="fact"><span>Models</span><span>Qwen3.8-4B / Qwen3.8-9B, Q4_0 GGUF (Apache-2.0)</span></div>
           <div class="fact"><span>Endpoint</span><span>http://127.0.0.1:18181/v1 (loopback only)</span></div>
           <div class="fact"><span>License</span><span>SNACK: Apache-2.0</span></div>
@@ -203,17 +210,28 @@
           <a href="#" id="linkModels">Model cards</a>
         </div>
       </div>
+
+      <div class="card">
+        <div class="card-head">
+          <div class="card-title">Updates</div>
+          <div class="card-sub">Checks GitHub for the latest SNACK release and its Windows ARM64 installer.</div>
+        </div>
+        <div class="doctor-actions">
+          <button id="checkUpdates" class="btn primary">Check for updates</button>
+        </div>
+        <p class="hint" id="updateInfo">—</p>
+      </div>
     </section>
       </div><!-- /folder-body -->
     </div><!-- /folder -->
 
     <footer class="footer">
-      <span id="versionTag">SNACK 0.1.0</span>
+      <span id="versionTag">SNACK 0.2.0</span>
       <span class="sep">·</span>
       <span id="modeTag">demo mode</span>
     </footer>
   </div>
 
-  <script src="app.js?v=5"></script>
+  <script src="app.js?v=6"></script>
 </body>
 </html>

@@ -1,14 +1,15 @@
 //! SNACK — control center backend.
 //!
 //! Manages the GenieX NPU inference server (child process), persists a tiny
-//! config.json, exposes doctor checks, and launches Hermes for chat.
+//! config.json, exposes doctor checks, and launches the selected chat harness
+//! (Hermes, Pi, or DeepSeek Harness).
 //!
 //! Layout (installed):
 //!   C:\Snack\geniex\geniex.exe        runtime
 //!   C:\Snack\models\<Id>\<Id>.gguf    one dir per model (load-bearing)
 //!   C:\Snack\config.json              { model, nctx, port }
 
-use std::io::{BufRead, BufReader};
+use std::io::{BufRead, BufReader, Read, Write};
 use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -33,10 +34,14 @@ struct Config {
     cache_type_k: String,
     #[serde(default = "default_q4")]
     cache_type_v: String,
+    /// Chat harness: "hermes" | "pi" | "dsh" (DeepSeek Harness).
+    #[serde(default = "default_harness")]
+    harness: String,
 }
 
 fn default_q8() -> String { "Q8_0".into() }
 fn default_q4() -> String { "Q4_0".into() }
+fn default_harness() -> String { "hermes".into() }
 
 impl Default for Config {
     fn default() -> Self {
@@ -46,6 +51,7 @@ impl Default for Config {
             port: 18181,
             cache_type_k: "Q8_0".into(),
             cache_type_v: "Q4_0".into(),
+            harness: default_harness(),
         }
     }
 }
@@ -142,6 +148,189 @@ fn ensure_geniex_env(cmd: &mut Command) {
     let root = geniex_plugin_root();
     cmd.env("GENIEX_PLUGIN_PATH", root.to_string_lossy().to_string())
         .current_dir(root);
+}
+
+// ---------------------------------------------------------------- update check
+
+const GITHUB_REPO: &str = "TurtleTortOS/snack";
+const HF_REPO: &str = "TurtleTortOS/snack-models";
+
+#[derive(Serialize, Clone)]
+struct UpdateInfo {
+    current_version: String,
+    latest_tag: String,
+    latest_published: String,
+    has_update: bool,
+    download_url: Option<String>,
+    release_url: String,
+}
+
+/// Check GitHub for the latest SNACK release.
+#[tauri::command]
+fn check_for_updates() -> Result<UpdateInfo, String> {
+    let current = option_env!("CARGO_PKG_VERSION").unwrap_or("0.0.0");
+    let url = format!("https://api.github.com/repos/{}/releases/latest", GITHUB_REPO);
+
+    let body = reqwest::blocking::Client::builder()
+        .timeout(Duration::from_secs(10))
+        .build()
+        .map_err(|e| e.to_string())?
+        .get(&url)
+        .header("Accept", "application/vnd.github.v3+json")
+        .header("User-Agent", "SNACK-Updater")
+        .send()
+        .map_err(|e| format!("network error: {}", e))?
+        .text()
+        .map_err(|e| format!("read error: {}", e))?;
+
+    let release: serde_json::Value =
+        serde_json::from_str(&body).map_err(|e| format!("json error: {}", e))?;
+
+    let tag = release["tag_name"].as_str().unwrap_or("unknown").to_string();
+    let published = release["published_at"].as_str().unwrap_or("unknown").to_string();
+    let release_url = release["html_url"].as_str().unwrap_or("").to_string();
+
+    // Find the Windows ARM64 installer asset
+    let download_url = release["assets"]
+        .as_array()
+        .and_then(|a| {
+            a.iter()
+                .find(|a| {
+                    let name = a["name"].as_str().unwrap_or("");
+                    name.contains("windows-arm64") && name.ends_with(".exe")
+                })
+                .map(|a| a["browser_download_url"].as_str().unwrap_or("").to_string())
+        });
+
+    Ok(UpdateInfo {
+        current_version: current.to_string(),
+        latest_tag: tag,
+        latest_published: published,
+        has_update: release["tag_name"].as_str() != Some(current),
+        download_url,
+        release_url,
+    })
+}
+
+#[derive(Serialize, Clone)]
+struct ModelDownloadStatus {
+    model_id: String,
+    status: String, // "downloading" | "complete" | "error"
+    progress: Option<f32>, // 0.0-1.0
+    error: Option<String>,
+}
+
+/// Download a model from HuggingFace to the local cache directory.
+/// Returns immediately with a status; progress is polled via model_download_progress.
+#[tauri::command]
+fn model_download(model_id: String) -> Result<ModelDownloadStatus, String> {
+    let home = snack_home();
+    let models_root = home.join("models");
+    let model_name = model_id.rsplit('/').next().unwrap_or(&model_id);
+    let model_dir = models_root.join(model_name);
+    let gguf_path = model_dir.join(format!("{}.gguf", model_name));
+
+    // Skip if already exists
+    if gguf_path.exists() {
+        return Ok(ModelDownloadStatus {
+            model_id,
+            status: "complete".into(),
+            progress: Some(1.0),
+            error: None,
+        });
+    }
+
+    std::fs::create_dir_all(&model_dir).map_err(|e| e.to_string())?;
+
+    let url = format!("https://huggingface.co/{}/resolve/main/{}.gguf", HF_REPO, model_name);
+
+    // Spawn download in background thread
+    let model_id_clone = model_id.clone();
+    let gguf_clone = gguf_path.clone();
+    std::thread::spawn(move || -> Option<()> {
+        let client = reqwest::blocking::Client::builder()
+            .timeout(Duration::from_secs(3600))
+            .build()
+            .ok()?;
+
+        let mut response = client.get(&url).send().ok()?;
+
+        if !response.status().is_success() {
+            return None;
+        }
+
+        let content_length = response.content_length().unwrap_or(0);
+        let mut file = std::fs::File::create(&gguf_clone).ok()?;
+        let mut downloaded: u64 = 0;
+        let mut buffer = vec![0u8; 65536];
+
+        // blocking::Response implements std::io::Read — stream it to disk
+        loop {
+            let n = match response.read(&mut buffer) {
+                Ok(0) => break,
+                Ok(n) => n,
+                Err(_) => return None,
+            };
+            file.write_all(&buffer[..n]).ok()?;
+            downloaded += n as u64;
+            if content_length > 0 {
+                let progress = downloaded as f32 / content_length as f32;
+                // Progress is stored in a file for the polling thread
+                let progress_file = gguf_clone.with_extension("progress");
+                let _ = std::fs::write(&progress_file, format!("{}", progress));
+            }
+        }
+
+        // Remove progress file on success
+        let progress_file = gguf_clone.with_extension("progress");
+        let _ = std::fs::remove_file(progress_file);
+        Some(())
+    });
+
+    Ok(ModelDownloadStatus {
+        model_id: model_id_clone,
+        status: "downloading".into(),
+        progress: Some(0.0),
+        error: None,
+    })
+}
+
+/// Poll the download progress for a specific model.
+#[tauri::command]
+fn model_download_progress(model_id: String) -> Result<ModelDownloadStatus, String> {
+    let home = snack_home();
+    let models_root = home.join("models");
+    let model_name = model_id.rsplit('/').next().unwrap_or(&model_id);
+    let model_dir = models_root.join(model_name);
+    let gguf_path = model_dir.join(format!("{}.gguf", model_name));
+    let progress_file = gguf_path.with_extension("progress");
+
+    if gguf_path.exists() {
+        return Ok(ModelDownloadStatus {
+            model_id,
+            status: "complete".into(),
+            progress: Some(1.0),
+            error: None,
+        });
+    }
+
+    if progress_file.exists() {
+        let content = std::fs::read_to_string(&progress_file).unwrap_or_default();
+        let progress: f32 = content.trim().parse().unwrap_or(0.0);
+        return Ok(ModelDownloadStatus {
+            model_id,
+            status: "downloading".into(),
+            progress: Some(progress),
+            error: None,
+        });
+    }
+
+    Ok(ModelDownloadStatus {
+        model_id,
+        status: "idle".into(),
+        progress: None,
+        error: None,
+    })
 }
 
 // ---------------------------------------------------------------- commands
@@ -362,25 +551,66 @@ fn models_reregister() -> Result<bool, String> {
 }
 
 #[tauri::command]
+fn harness_select(harness: String) -> Result<String, String> {
+    if !["hermes", "pi", "dsh"].contains(&harness.as_str()) {
+        return Err(format!("unknown harness: {}", harness));
+    }
+    let mut cfg = load_config();
+    cfg.harness = harness.clone();
+    save_config(&cfg)?;
+    Ok(harness)
+}
+
+#[tauri::command]
 fn chat_launch() -> Result<bool, String> {
-    // Open Hermes: desktop shortcut if present, else the app path, else the
-    // installed binary. Best-effort.
+    let cfg = load_config();
     let user = std::env::var("USERPROFILE").unwrap_or_default();
-    let candidates = [
-        format!("{}/Desktop/Hermes.lnk", user),
-        format!(
-            "{}/AppData/Roaming/Microsoft/Windows/Start Menu/Programs/Hermes.lnk",
-            user
-        ),
-    ];
-    for c in &candidates {
-        if std::path::Path::new(c).exists() {
-            let _ = Command::new("cmd").args(["/C", "start", "", c]).spawn();
-            return Ok(true);
+    match cfg.harness.as_str() {
+        // Pi: open a console window running `pi` (pre-pointed at the SNACK
+        // endpoint by %USERPROFILE%\.pi\agent\models.json, written by the
+        // installer).
+        "pi" => {
+            let _ = Command::new("cmd")
+                .args(["/C", "start", "SNACK Pi", "cmd", "/K", "pi"])
+                .spawn();
+            Ok(true)
+        }
+        // DeepSeek Harness: Start Menu shortcut from the installer; fall back
+        // to npx directly.
+        "dsh" => {
+            let lnk = format!(
+                "{}/AppData/Roaming/Microsoft/Windows/Start Menu/Programs/SNACK DeepSeek Harness.lnk",
+                user
+            );
+            if std::path::Path::new(&lnk).exists() {
+                let _ = Command::new("cmd").args(["/C", "start", "", &lnk]).spawn();
+            } else {
+                let _ = Command::new("cmd")
+                    .args(["/C", "start", "SNACK DeepSeek Harness", "npx", "@deepseek-ai/dsh", "web"])
+                    .spawn();
+            }
+            Ok(true)
+        }
+        // Hermes (default): desktop shortcut if present, else the Start Menu
+        // link, else the installed binary. Best-effort.
+        _ => {
+            let candidates = [
+                format!("{}/Desktop/Hermes.lnk", user),
+                format!(
+                    "{}/AppData/Roaming/Microsoft/Windows/Start Menu/Programs/Hermes.lnk",
+                    user
+                ),
+            ];
+            for c in &candidates {
+                if std::path::Path::new(c).exists() {
+                    let _ = Command::new("cmd").args(["/C", "start", "", c]).spawn();
+                    return Ok(true);
+                }
+            }
+            let _ = Command::new("cmd").args(["/C", "start", "", "Hermes"]).spawn();
+            Ok(true)
         }
     }
-    let _ = Command::new("cmd").args(["/C", "start", "", "Hermes"]).spawn();
-    Ok(true)
 }
 
 #[derive(Serialize, Clone)]
@@ -493,20 +723,57 @@ fn doctor_run() -> Result<Vec<DoctorRow>, String> {
         fix: Some("Server down or model failed to load — see log tail.".into()),
     });
 
-    // 7. Hermes reachable.
+    // 7. Selected harness installed (hermes | pi | dsh).
     let user = std::env::var("USERPROFILE").unwrap_or_default();
-    let hermes = std::path::Path::new(&user)
-        .join("AppData")
-        .join("Local")
-        .join("hermes")
-        .exists();
+    let npm_bin = std::path::Path::new(&user).join("AppData").join("Roaming").join("npm");
+    let (harness_name, harness_ok, harness_fix) = match cfg.harness.as_str() {
+        "pi" => (
+            "Pi harness installed",
+            npm_bin.join("pi.cmd").exists() || server_cmd_exists("pi"),
+            "Install Pi via SnackSetup (choose Pi) or: irm https://pi.dev/install.ps1 | iex",
+        ),
+        "dsh" => (
+            "DeepSeek Harness installed",
+            npm_bin.join("dsh.cmd").exists() || server_cmd_exists("dsh"),
+            "Install DeepSeek Harness via SnackSetup (choose DeepSeek) or: npm install -g @deepseek-ai/dsh",
+        ),
+        _ => (
+            "Hermes installed",
+            std::path::Path::new(&user)
+                .join("AppData")
+                .join("Local")
+                .join("hermes")
+                .exists(),
+            "Install Hermes (SnackSetup or the Hermes installer)",
+        ),
+    };
     rows.push(DoctorRow {
-        name: "Hermes installed".into(),
-        pass: hermes,
-        fix: Some("Install Hermes (SnackSetup or the Hermes installer).".into()),
+        name: harness_name.into(),
+        pass: harness_ok,
+        fix: Some(harness_fix.into()),
     });
 
+    // 8. Node.js (only required for the Pi / DeepSeek harnesses).
+    if matches!(cfg.harness.as_str(), "pi" | "dsh") {
+        rows.push(DoctorRow {
+            name: "Node.js present (harness)".into(),
+            pass: server_cmd_exists("node"),
+            fix: Some("Install Node.js 22+ (SnackSetup does it automatically for Pi/DeepSeek).".into()),
+        });
+    }
+
     Ok(rows)
+}
+
+/// True if an executable resolves on PATH (where.exe lookup).
+fn server_cmd_exists(cmd: &str) -> bool {
+    Command::new("where.exe")
+        .arg(cmd)
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false)
 }
 
 // ---------------------------------------------------------------- run
@@ -524,7 +791,11 @@ pub fn run() {
             config_get,
             models_reregister,
             chat_launch,
-            doctor_run
+            harness_select,
+            doctor_run,
+            check_for_updates,
+            model_download,
+            model_download_progress
         ])
         .run(tauri::generate_context!())
         .expect("error while running SNACK");

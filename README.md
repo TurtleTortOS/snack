@@ -5,19 +5,20 @@ via Qualcomm's [GenieX](https://github.com/qualcomm/GenieX) runtime, exposed thr
 standard OpenAI-compatible endpoint on `127.0.0.1:18181`.
 
 **SNACK** is the control center (a small Tauri desktop app): start/stop the server, pick
-which model runs, set context length, run diagnostics, and launch [Hermes](https://hermes-agent.nousresearch.com)
-for chat.
+which model runs, set context length, run diagnostics, and launch your chosen chat harness
+— [Hermes](https://hermes-agent.nousresearch.com), [Pi](https://pi.dev), or
+[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) — for chat.
 
 > Target: Microsoft Surface (Snapdragon X Plus, X1P42100), Windows ARM64, 16 GB RAM.
-> v1 ships two models: **Qwen3.8-4B** (fast) and **Qwen3.8-9B** (smart), Q4_0 GGUF, 64k context.
+> v0.2 ships two models: **Qwen3.8-4B** (fast) and **Qwen3.8-9B** (smart), Q4_0 GGUF, 64k context.
 
 ## Layout
 
 ```
 C:\Snack\
 ├── snack.exe                 SNACK control center (this app)
-├── config.json               { model, nctx, port }  — the entire app state
-├── geniex\                   GenieX 0.6.1 runtime (BSD-3)
+├── config.json               { model, nctx, port, harness }  — the entire app state
+├── geniex\                   GenieX 0.8.0 runtime (BSD-3)
 │   └── geniex.exe            serve --compute npu --host 127.0.0.1:18181
 └── models\                   one directory per model (load-bearing layout)
     ├── Qwen3.8-4B\Qwen3.8-4B.gguf
@@ -26,10 +27,24 @@ C:\Snack\
 
 ## Quickstart (installed)
 
-1. Run `SnackSetup.exe` (installs runtime + models + SNACK + Hermes, ends on a green Doctor checklist).
+1. Run `SnackSetup.exe` (installs runtime + SNACK, asks which **chat harness** to
+   install — Hermes / Pi / DeepSeek Harness — and which models to bundle, ends on a
+   green Doctor checklist).
 2. Open **SNACK** → toggle the server on (first start ~30 s while the server comes up).
-3. Pick **9B (Smart)** or **4B (Fast)**, set context, **Launch Chat**.
+3. Pick **9B (Smart)** or **4B (Fast)**, set context, choose the harness, **Launch Chat**.
 4. Point any tool at `http://127.0.0.1:18181/v1` (System tab → copy).
+
+### Harness notes
+
+- **Hermes** — installed via the official install script (always latest).
+- **Pi** — installed via `irm https://pi.dev/install.ps1 | iex`; the installer writes
+  `%USERPROFILE%\.pi\agent\models.json` with a `snack-npu` provider so `pi` can select
+  the SNACK models with `/model` — no API key needed.
+- **DeepSeek Harness** — installed via `npm install -g @deepseek-ai/dsh`; the installer
+  seeds `~\.dsh\settings.yaml` with a `snack-npu` provider (Web UI: Settings → Models
+  works too). Launch opens the dsh Web UI on `127.0.0.1:3080`.
+- Pi and DeepSeek Harness need Node.js 22+; the installer installs it automatically
+  when missing.
 
 ## The endpoint (for the rest of the machine)
 
@@ -71,7 +86,8 @@ with in-memory state; all the same panels and interactions work).
 The **System** tab runs the same checklist the installer ends with:
 
 NPU present → GenieX intact → model files → model-manager IDs → server on port →
-inference smoke test → Hermes installed. Each failure carries a one-line fix.
+inference smoke test → selected harness installed (Node.js too for Pi/DeepSeek).
+Each failure carries a one-line fix.
 
 ## Load-bearing details (do not regress)
 
@@ -85,14 +101,17 @@ inference smoke test → Hermes installed. Each failure carries a one-line fix.
   first token (~15 s 4B / ~30 s 9B).
 - **Loopback only.** GenieX binds `127.0.0.1` and refuses external hosts.
 
-## Scope (v1)
+## Scope (v0.2)
 
 Two models, fixed. Toggle, model picker, context stepper, endpoint + copy, Doctor,
-Launch Chat. Model install/uninstall and a larger catalog land in v1.5.
-Out of scope: MTP speculative decoding (GenieX 0.6.1 runtime bug, parked), remote access,
-non-Snapdragon hardware, cloud of any kind.
+harness picker (Hermes / Pi / DeepSeek Harness), Launch Chat, model download from
+HuggingFace, update check against GitHub releases. Model install/uninstall for a
+larger catalog lands in v1.5.
+Out of scope: MTP speculative decoding (parked), remote access, non-Snapdragon
+hardware, cloud of any kind.
 
 ## License
 
-Apache-2.0 (this repo). Bundled components: GenieX 0.6.1 (BSD-3-Clause), Qwen3.8 models
-(Apache-2.0, see model cards for attribution), Hermes (its own license).
+Apache-2.0 (this repo). Bundled components: GenieX 0.8.0 (BSD-3-Clause), Qwen3.8 models
+(Apache-2.0, see model cards for attribution), and the optional chat harnesses —
+Hermes, Pi, DeepSeek Harness (each under its own license).
