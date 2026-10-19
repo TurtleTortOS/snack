@@ -24,7 +24,7 @@ function Verify-Entry($e, $required) {
     Write-Host "  OK: $($e.prop) (method: $($v.method), no bundled artifact)"
     return
   }
-  $p = Join-Path $root $v.file
+  $p = Join-Path $PSScriptRoot ($v.file -replace '/','\')
 
   if ($required) {
     if (-not (Test-Path $p)) {
