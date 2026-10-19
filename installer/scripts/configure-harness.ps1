@@ -1,4 +1,4 @@
-# configure-harness.ps1 — point the selected harness at the SNACK endpoint and
+# configure-harness.ps1 - point the selected harness at the SNACK endpoint and
 # record the harness choice in C:\Snack\config.json.
 # Called by SnackSetup: configure-harness.ps1 -Harness hermes|pi|dsh
 param(
@@ -18,13 +18,13 @@ if (Test-Path $configPath) {
     $existing = Get-Content $configPath -Raw | ConvertFrom-Json
     foreach ($p in $existing.PSObject.Properties) { $cfg[$p.Name] = $p.Value }
     $cfg['harness'] = $Harness
-  } catch { Write-Host '[harness] config.json unreadable — writing fresh' }
+  } catch { Write-Host '[harness] config.json unreadable - writing fresh' }
 }
 $cfg | ConvertTo-Json | Set-Content -Path $configPath -Encoding UTF8
 Write-Host "[harness] config.json harness = $Harness"
 
 # ---------------------------------------------------------------- Pi
-# %USERPROFILE%\.pi\agent\models.json — custom OpenAI-compatible provider so
+# %USERPROFILE%\.pi\agent\models.json - custom OpenAI-compatible provider so
 # `pi` can select the SNACK models with no API key.
 if ($Harness -eq 'pi') {
   $piDir = Join-Path $env:USERPROFILE '.pi\agent'
@@ -46,7 +46,7 @@ if ($Harness -eq 'pi') {
 '@
   $modelsPath = Join-Path $piDir 'models.json'
   if (Test-Path $modelsPath) {
-    Write-Host "[harness] Pi models.json already exists — SNACK provider NOT merged automatically; add baseUrl http://127.0.0.1:18181/v1 manually if needed"
+    Write-Host "[harness] Pi models.json already exists - SNACK provider NOT merged automatically; add baseUrl http://127.0.0.1:18181/v1 manually if needed"
   } else {
     Set-Content -Path $modelsPath -Value $modelsJson -Encoding UTF8
     Write-Host "[harness] wrote $modelsPath (provider: snack-npu)"
@@ -54,7 +54,7 @@ if ($Harness -eq 'pi') {
 }
 
 # ---------------------------------------------------------------- DeepSeek Harness
-# ~/.dsh/settings.yaml — custom OpenAI-compatible provider (snack-npu).
+# ~/.dsh/settings.yaml - custom OpenAI-compatible provider (snack-npu).
 # Existing settings are left untouched; the snippet is written alongside for
 # copy-paste merge (dsh settings format is preview-stage and may change).
 if ($Harness -eq 'dsh') {
@@ -81,7 +81,7 @@ llm-pi-ai:
   Set-Content -Path $snippetPath -Value $snippet -Encoding UTF8
   $settingsPath = Join-Path $dshDir 'settings.yaml'
   if (Test-Path $settingsPath) {
-    Write-Host "[harness] existing settings.yaml left untouched — merge $snippetPath into it (or use Settings -> Models in the dsh Web UI)"
+    Write-Host "[harness] existing settings.yaml left untouched - merge $snippetPath into it (or use Settings -> Models in the dsh Web UI)"
   } else {
     Copy-Item $snippetPath $settingsPath
     Write-Host "[harness] wrote $settingsPath from the SNACK snippet"

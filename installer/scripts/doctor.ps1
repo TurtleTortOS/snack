@@ -1,4 +1,4 @@
-# doctor.ps1 — SNACK diagnostic checklist.
+# doctor.ps1 - SNACK diagnostic checklist.
 # Mirrors the in-app Doctor (System tab). Exits 0 only if all pass.
 $ErrorActionPreference = 'Continue'
 
@@ -10,7 +10,7 @@ function Add($name, $pass, $fix) {
 # 1. NPU present
 $hex = Get-PnpDevice -PresentOnly -ErrorAction SilentlyContinue |
   Where-Object { $_.FriendlyName -match 'Hexagon|Qualcomm' } | Select-Object -First 1
-Add 'NPU present' $hex "NPU not detected — check Device Manager / Windows updates"
+Add 'NPU present' $hex "NPU not detected - check Device Manager / Windows updates"
 
 # 2. GenieX runtime intact
 $geniexOk = Test-Path 'C:\GenieX\geniex.exe'
@@ -48,7 +48,7 @@ if ($alive) {
     $smoke = $r.StatusCode -eq 200
   } catch { $smoke = $false }
 }
-Add 'Inference smoke test' $smoke "Server down or model failed to load — see server log"
+Add 'Inference smoke test' $smoke "Server down or model failed to load - see server log"
 
 # 7. Harness installed (choice recorded in C:\Snack\config.json; default hermes)
 $harness = 'hermes'

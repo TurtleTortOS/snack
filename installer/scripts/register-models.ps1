@@ -1,4 +1,4 @@
-# register-models.ps1 — register local GGUFs with the GenieX model manager.
+# register-models.ps1 - register local GGUFs with the GenieX model manager.
 # Layout contract (LOAD-BEARING): one directory per model, each containing
 # exactly one file named <ModelId>.gguf. A shared directory poisons the
 # localfs pull cache (wrong file linked to another model's ID).
@@ -37,5 +37,5 @@ if ($failures -gt 0) {
   Write-Host "[register] DONE with $failures failure(s)"
   exit 1
 }
-Write-Host "[register] DONE — all models registered"
+Write-Host "[register] DONE - all models registered"
 exit 0

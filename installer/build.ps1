@@ -1,4 +1,4 @@
-# build.ps1 — verify pins + build SnackSetup.exe
+# build.ps1 - verify pins + build SnackSetup.exe
 # Run on the ARM64 build machine (the Surface).
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
@@ -11,7 +11,7 @@ $required = @(
   @{ prop = 'geniex_cli_setup' }
 )
 
-# Optional entries (models — only pin if the file exists, skip if absent)
+# Optional entries (models - only pin if the file exists, skip if absent)
 $optional = @(
   @{ prop = 'model_4b' },
   @{ prop = 'model_9b' }
@@ -19,7 +19,7 @@ $optional = @(
 
 function Verify-Entry($e, $required) {
   $v = $versions.$($e.prop)
-  # install_script / npm_global harnesses have no bundled file — nothing to pin.
+  # install_script / npm_global harnesses have no bundled file - nothing to pin.
   if (-not $v.file) {
     Write-Host "  OK: $($e.prop) (method: $($v.method), no bundled artifact)"
     return
@@ -58,7 +58,7 @@ function Verify-Entry($e, $required) {
       }
       Write-Host "  OK: $($v.file) ($([math]::Round((Get-Item $p).Length/1MB,1)) MB) [optional]"
     } else {
-      Write-Host "  SKIP: $($v.file) [optional — not present, installer will skip]"
+      Write-Host "  SKIP: $($v.file) [optional - not present, installer will skip]"
     }
   }
 }
@@ -69,7 +69,7 @@ foreach ($e in $optional) { Verify-Entry $e $false }
 Write-Host "=== 2. snack.exe built? ==="
 $exe = "$root\src-tauri\target\release\snack.exe"
 if (-not (Test-Path $exe)) {
-  Write-Host "  MISSING: target\release\snack.exe — run: cargo tauri build"
+  Write-Host "  MISSING: target\release\snack.exe - run: cargo tauri build"
   exit 1
 }
 Write-Host "  OK: snack.exe"
@@ -83,7 +83,7 @@ if (-not $iscc) {
     if (Test-Path $cand) { $iscc = $cand; break }
   }
   if (-not $iscc) {
-    Write-Host "  ISCC.exe not found — install Inno Setup (winget install JRSoftware.InnoSetup)"
+    Write-Host "  ISCC.exe not found - install Inno Setup (winget install JRSoftware.InnoSetup)"
     exit 1
   }
 }
