@@ -371,14 +371,15 @@ async function startDownload(id) {
   state.dl[id] = { status: 'downloading', progress: 0 };
   await invoke('model_download', { model_id: id });
   renderModels();
-  const timer = setInterval(async () => {
+  // self-rescheduling poll (no setInterval backlog)
+  for (;;) {
+    await new Promise((r) => setTimeout(r, 800));
     const s = await invoke('model_download_progress', { model_id: id });
     if (!s || s.status === 'downloading') {
       state.dl[id] = { status: 'downloading', progress: s && s.progress != null ? s.progress : 0 };
       renderModels();
-      return;
+      continue;
     }
-    clearInterval(timer);
     if (s.status === 'complete') {
       const m = CATALOG.find((x) => x.id === id);
       if (m) m.installed = true;
@@ -388,7 +389,8 @@ async function startDownload(id) {
       state.dl[id] = { status: 'error', progress: null, error: s.error || 'download failed' };
     }
     renderModels();
-  }, 800);
+    break;
+  }
 }
 
 async function checkUpdates() {
@@ -503,8 +505,21 @@ document.addEventListener('DOMContentLoaded', () => {
     if (target) target.click();
   }
 
+  // Self-rescheduling poll loops: the next tick waits for the previous one
+  // to finish, so slow responses can never pile up an invoke backlog.
+  async function pollLoop(fn, ms) {
+    for (;;) {
+      try {
+        await fn();
+      } catch (e) {
+        /* transient - keep polling */
+      }
+      await new Promise((r) => setTimeout(r, ms));
+    }
+  }
+
   // poll server status so "warming" -> "running" flips without user action
-  setInterval(async () => {
+  pollLoop(async () => {
     const s = await invoke('server_status');
     if (s) {
       if (s.state !== state.serverState) state.serverState = s.state;
@@ -517,7 +532,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // server log tail (System page)
   const logEl = document.getElementById('logTail');
   if (logEl) {
-    setInterval(async () => {
+    pollLoop(async () => {
       const lines = await invoke('log_tail');
       logEl.textContent = Array.isArray(lines) && lines.length
         ? lines.slice().reverse().join('\n')

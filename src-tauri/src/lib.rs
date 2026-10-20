@@ -139,9 +139,34 @@ fn http_ok(url: &str, timeout: Duration) -> bool {
         .unwrap_or(false)
 }
 
+/// Shared async HTTP client - one connection pool for the whole app.
+/// (The old code built a fresh blocking client per poll: expensive and it
+/// ran on the window's main thread.)
+fn http_client() -> &'static reqwest::Client {
+    static CLIENT: std::sync::OnceLock<reqwest::Client> = std::sync::OnceLock::new();
+    CLIENT.get_or_init(|| {
+        reqwest::Client::builder()
+            .timeout(Duration::from_secs(5))
+            .build()
+            .unwrap_or_else(|_| reqwest::Client::new())
+    })
+}
+
 /// True if the server answers /v1/models (regardless of who started it).
+/// Blocking variant - only for spawn_blocking contexts (doctor).
 fn server_alive(cfg: &Config) -> bool {
     http_ok(&format!("{}/models", base_url(cfg)), Duration::from_secs(5))
+}
+
+/// Async variant for UI-polled commands: never touches the main thread.
+async fn server_alive_async(cfg: &Config) -> bool {
+    http_client()
+        .get(format!("{}/models", base_url(cfg)))
+        .timeout(Duration::from_secs(2))
+        .send()
+        .await
+        .map(|r| r.status().is_success())
+        .unwrap_or(false)
 }
 
 fn ensure_geniex_env(cmd: &mut Command) {
@@ -178,20 +203,20 @@ struct UpdateInfo {
 
 /// Check GitHub for the latest SNACK release.
 #[tauri::command]
-fn check_for_updates() -> Result<UpdateInfo, String> {
+async fn check_for_updates() -> Result<UpdateInfo, String> {
     let current = option_env!("CARGO_PKG_VERSION").unwrap_or("0.0.0");
     let url = format!("https://api.github.com/repos/{}/releases/latest", GITHUB_REPO);
 
-    let body = reqwest::blocking::Client::builder()
-        .timeout(Duration::from_secs(10))
-        .build()
-        .map_err(|e| e.to_string())?
+    let body = http_client()
         .get(&url)
+        .timeout(Duration::from_secs(10))
         .header("Accept", "application/vnd.github.v3+json")
         .header("User-Agent", "SNACK-Updater")
         .send()
+        .await
         .map_err(|e| format!("network error: {}", e))?
         .text()
+        .await
         .map_err(|e| format!("read error: {}", e))?;
 
     let release: serde_json::Value =
@@ -347,13 +372,13 @@ fn model_download_progress(model_id: String) -> Result<ModelDownloadStatus, Stri
 // ---------------------------------------------------------------- commands
 
 #[tauri::command]
-fn server_toggle(app: tauri::AppHandle, on: bool) -> Result<ServerStatus, String> {
-    let state = app.state::<State>();
-    let mut guard = state.0.lock().unwrap();
+async fn server_toggle(app: tauri::AppHandle, on: bool) -> Result<ServerStatus, String> {
     let cfg = load_config();
 
     if !on {
         // full stop: kill our child if we own it
+        let state = app.state::<State>();
+        let mut guard = state.0.lock().unwrap();
         if let Some(mut child) = guard.child.take() {
             let _ = child.kill();
             let _ = child.wait();
@@ -367,8 +392,8 @@ fn server_toggle(app: tauri::AppHandle, on: bool) -> Result<ServerStatus, String
         });
     }
 
-    // already answering?
-    if server_alive(&cfg) {
+    // already answering? (async probe: off the main thread, off the lock)
+    if server_alive_async(&cfg).await {
         return Ok(ServerStatus {
             state: "running".into(),
             model: cfg.model.clone(),
@@ -376,6 +401,25 @@ fn server_toggle(app: tauri::AppHandle, on: bool) -> Result<ServerStatus, String
             port: cfg.port,
             measured_tps: None,
         });
+    }
+
+    // A child we already spawned is still booting - never double-spawn
+    // (queued clicks must not pile up servers).
+    {
+        let state = app.state::<State>();
+        let mut guard = state.0.lock().unwrap();
+        if let Some(child) = &mut guard.child {
+            if child.try_wait().ok().flatten().is_none() {
+                return Ok(ServerStatus {
+                    state: "warming".into(),
+                    model: cfg.model.clone(),
+                    nctx: cfg.nctx,
+                    port: cfg.port,
+                    measured_tps: None,
+                });
+            }
+            guard.child = None; // reaped dead child
+        }
     }
 
     if !geniex_exe().exists() {
@@ -450,7 +494,11 @@ fn server_toggle(app: tauri::AppHandle, on: bool) -> Result<ServerStatus, String
             }
         });
     }
-    guard.child = Some(child);
+    {
+        let state = app.state::<State>();
+        let mut guard = state.0.lock().unwrap();
+        guard.child = Some(child);
+    }
 
     // Don't block the UI: report "warming" now. The frontend polls
     // server_status; /v1/models answers once the server is up.
@@ -464,11 +512,12 @@ fn server_toggle(app: tauri::AppHandle, on: bool) -> Result<ServerStatus, String
 }
 
 #[tauri::command]
-fn server_status(app: tauri::AppHandle) -> Result<ServerStatus, String> {
+async fn server_status(app: tauri::AppHandle) -> Result<ServerStatus, String> {
     let cfg = load_config();
+    // Probe first, off the lock and off the main thread (async command).
+    let alive = server_alive_async(&cfg).await;
     let state = app.state::<State>();
     let guard = state.0.lock().unwrap();
-    let alive = server_alive(&cfg);
     Ok(ServerStatus {
         state: if alive { "running" } else { "stopped" }.into(),
         model: cfg.model,
@@ -524,7 +573,13 @@ fn config_get() -> Result<Config, String> {
 }
 
 #[tauri::command]
-fn models_reregister() -> Result<bool, String> {
+async fn models_reregister() -> Result<bool, String> {
+    tauri::async_runtime::spawn_blocking(models_reregister_blocking)
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+fn models_reregister_blocking() -> Result<bool, String> {
     // `geniex pull` from each isolated model dir; the dir layout is what makes
     // the localfs hub unambiguous (one <Id>.gguf per dir).
     let models_root = snack_home().join("models");
@@ -634,7 +689,15 @@ struct DoctorRow {
 }
 
 #[tauri::command]
-fn doctor_run() -> Result<Vec<DoctorRow>, String> {
+async fn doctor_run() -> Result<Vec<DoctorRow>, String> {
+    // Doctor spawns PowerShell/where.exe and may run a smoke inference - all
+    // blocking work goes to a blocking thread, never the main thread.
+    tauri::async_runtime::spawn_blocking(doctor_run_blocking)
+        .await
+        .map_err(|e| format!("doctor failed: {}", e))?
+}
+
+fn doctor_run_blocking() -> Result<Vec<DoctorRow>, String> {
     let home = snack_home();
     let cfg = load_config();
     let mut rows = Vec::new();

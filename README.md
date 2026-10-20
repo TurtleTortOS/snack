@@ -30,6 +30,9 @@ C:\Snack\
 1. Run `SnackSetup.exe` (installs runtime + SNACK, asks which **chat harness** to
    install — Hermes / Pi / DeepSeek Harness — and which models to bundle, ends on a
    green Doctor checklist).
+   > Note: the GenieX runtime step may launch the **Visual Studio Build Tools**
+   > installer on machines without a C++ toolchain. Let it finish — killing it can
+   > leave the runtime incomplete. (Skipped automatically when a toolchain exists.)
 2. Open **SNACK** → toggle the server on (first start ~30 s while the server comes up).
 3. Pick **9B (Smart)** or **4B (Fast)**, set context, choose the harness, **Launch Chat**.
 4. Point any tool at `http://127.0.0.1:18181/v1` (System tab → copy).
