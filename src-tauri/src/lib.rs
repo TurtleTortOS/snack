@@ -189,7 +189,7 @@ fn no_window(_cmd: &mut Command) {}
 // ---------------------------------------------------------------- update check
 
 const GITHUB_REPO: &str = "TurtleTortOS/snack";
-const HF_REPO: &str = "TurtleTortOS/snack-models";
+const HF_REPO: &str = "TurtletortOS/snack-models";
 
 #[derive(Serialize, Clone)]
 struct UpdateInfo {

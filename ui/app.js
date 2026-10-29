@@ -266,7 +266,7 @@ function renderModels() {
           `<div class="model-actions"><button class="btn small primary" data-download="${m.id}">Retry download</button></div>`;
       } else {
         controls.innerHTML =
-          `<div class="info-box" data-tip="Not installed yet — downloads from HuggingFace (TurtleTortOS/snack-models).">?</div>` +
+          `<div class="info-box" data-tip="Not installed yet — downloads from HuggingFace (TurtletortOS/snack-models).">?</div>` +
           `<div class="model-actions"><button class="btn small primary" data-download="${m.id}">Download</button></div>`;
       }
     }

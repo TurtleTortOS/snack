@@ -24,13 +24,13 @@
   },
   "model_4b": {
     "file": "runtime/Qwen3.8-4B.gguf",
-    "url": "https://huggingface.co/TurtleTortOS/snack-models/resolve/main/Qwen3.8-4B.gguf",
+    "url": "https://huggingface.co/TurtletortOS/snack-models/resolve/main/Qwen3.8-4B.gguf",
     "sha256": "3F3EFEC9F9EE79B5A5D6845FC449BE30E3474D737006877165854DBD763D2AD0",
     "optional": true
   },
   "model_9b": {
     "file": "runtime/Qwen3.8-9B.gguf",
-    "url": "https://huggingface.co/TurtleTortOS/snack-models/resolve/main/Qwen3.8-9B.gguf",
+    "url": "https://huggingface.co/TurtletortOS/snack-models/resolve/main/Qwen3.8-9B.gguf",
     "sha256": "E90D41339734A60063DD7E6BFDE77184DC96AA2EF5503D4DBD20548DA9FCCB4C",
     "optional": true
   },
