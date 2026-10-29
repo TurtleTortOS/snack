@@ -14,7 +14,14 @@ $required = @(
 # Optional entries (models - only pin if the file exists, skip if absent)
 $optional = @(
   @{ prop = 'model_4b' },
-  @{ prop = 'model_9b' }
+  @{ prop = 'model_9b' },
+  @{ prop = 'model_lfm3' },
+  @{ prop = 'model_lfm3vl' },
+  @{ prop = 'model_lfm3vl_mmproj' },
+  @{ prop = 'model_lfm3audio' },
+  @{ prop = 'model_lfm3audio_mmproj' },
+  @{ prop = 'model_lfm3omni' },
+  @{ prop = 'model_lfm3omni_mmproj' }
 )
 
 function Verify-Entry($e, $required) {

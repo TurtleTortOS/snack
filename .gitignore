@@ -14,3 +14,7 @@ Thumbs.db
 
 # installer build output
 dist/
+
+# Bundled model/runtime artifacts (staged, SHA256-pinned in versions.json)
+installer/runtime/*.gguf
+installer/runtime/*.exe

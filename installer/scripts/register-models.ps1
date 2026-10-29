@@ -25,7 +25,12 @@ foreach ($dir in Get-ChildItem $modelsRoot -Directory) {
     continue
   }
   Write-Host "[register] pulling $id from $($dir.FullName)"
-  & $geniex pull $id --model-hub localfs --local-path $dir.FullName 2>&1 |
+  # VLM contract: a mmproj-*.gguf in the model dir marks it as a vision/audio
+  # model; pull must record --model-type vlm so infer/serve load the projector.
+  $mmproj = Get-ChildItem $dir.FullName -Filter 'mmproj-*.gguf' -File | Select-Object -First 1
+  $mtype = if ($mmproj) { 'vlm' } else { 'llm' }
+  Write-Host "[register] model-type: $mtype"
+  & $geniex pull $id --model-hub localfs --model-type $mtype --local-path $dir.FullName 2>&1 |
     ForEach-Object { Write-Host "  $_" }
   if ($LASTEXITCODE -ne 0) {
     Write-Host "[register] FAIL $id (exit $LASTEXITCODE)"

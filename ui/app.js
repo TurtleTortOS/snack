@@ -185,7 +185,7 @@ function renderStatus() {
   const sel = CATALOG.find((m) => m.id === state.selected);
   if (sel) {
     document.getElementById('homeModel').textContent = sel.name;
-    document.getElementById('quickTps').textContent = '~' + sel.tps;
+    document.getElementById('quickTps').textContent = sel.tps ? '~' + sel.tps : 'unmeasured';
     document.getElementById('quickSize').textContent = sel.sizeGB.toFixed(2) + ' GB';
   }
   document.getElementById('homeCtx').textContent = fmtCtx(state.ctx[state.selected]);
@@ -219,8 +219,8 @@ function renderModels() {
       `<div class="model-usecase">${m.usecase}</div>` +
       `<div class="model-specs">` +
       `<span class="model-spec"><b>${m.sizeGB.toFixed(2)}</b> GB</span>` +
-      `<span class="model-spec"><b>~${m.tps}</b> tok/s</span>` +
-      `<span class="model-spec">cold load <b>~${m.coldLoadS}s</b></span>` +
+      `<span class="model-spec"><b>${m.tps ? '~' + m.tps : 'unmeasured'}</b> tok/s</span>` +
+      `<span class="model-spec">cold load <b>${m.coldLoadS ? '~' + m.coldLoadS + 's' : 'unmeasured'}</b></span>` +
       (m.installed ? '' : `<span class="model-spec" style="color:var(--warn)">not installed</span>`) +
       `</div>`;
 

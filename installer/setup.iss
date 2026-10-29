@@ -59,6 +59,10 @@ Name: "app"; Description: "SNACK app"; Types: full basic; Flags: fixed
 Name: "geniex"; Description: "GenieX runtime {#GenieXVer}"; Types: full basic; Flags: fixed
 Name: "model4b"; Description: "Qwen3.8-4B model (~2.4 GB) — FAST"; Types: full
 Name: "model9b"; Description: "Qwen3.8-9B model (~5.1 GB) — SMART"; Types: full
+Name: "model_lfm3"; Description: "LFM3-1.7B (QAD Q4_0, ~1.1 GB) — AGENT"; Types: full
+Name: "model_lfm3vl"; Description: "LFM3-VL-2B (Q4_0 + vision, ~1.2 GB) — VISION"; Types: full
+Name: "model_lfm3audio"; Description: "LFM3-Audio-2B (Q4_0 + audio, ~1.4 GB) — AUDIO"; Types: full
+Name: "model_lfm3omni"; Description: "LFM3-Omni-2B (Q4_0 + vision+audio, ~1.6 GB) — OMNI"; Types: full
 Name: "scripts"; Description: "Doctor + helper scripts"; Types: full basic; Flags: fixed
 #else
 Name: "app"; Description: "SNACK app"; Types: basic; Flags: fixed
@@ -75,6 +79,20 @@ Source: "runtime\geniex-cli-setup.exe"; DestDir: "C:\Snack\staging"; Flags: dele
 #ifndef NO_MODELS
 Source: "runtime\Qwen3.8-4B.gguf"; DestDir: "{#SnackHome}\models\Qwen3.8-4B"; Flags: ignoreversion; Components: model4b
 Source: "runtime\Qwen3.8-9B.gguf"; DestDir: "{#SnackHome}\models\Qwen3.8-9B"; Flags: ignoreversion; Components: model9b
+; LFM3 family (LFM Open License v1.0 - license copy ships next to each model)
+; Wildcard Sources: Inno skips a wildcard matching zero files, so builds stay
+; green when an LFM3 file is parked (.hold) - plain names would break ISCC.
+Source: "runtime\LFM3-1.7B*.gguf"; DestDir: "{#SnackHome}\models\LFM3-1.7B"; Flags: ignoreversion; Components: model_lfm3
+Source: "runtime\LFM3-LICENSE*.txt"; DestDir: "{#SnackHome}\models\LFM3-1.7B"; Flags: ignoreversion; Components: model_lfm3
+Source: "runtime\LFM3-VL-2B*.gguf"; DestDir: "{#SnackHome}\models\LFM3-VL-2B"; Flags: ignoreversion; Components: model_lfm3vl
+Source: "runtime\mmproj-LFM3-VL-2B*.gguf"; DestDir: "{#SnackHome}\models\LFM3-VL-2B"; Flags: ignoreversion; Components: model_lfm3vl
+Source: "runtime\LFM3-LICENSE*.txt"; DestDir: "{#SnackHome}\models\LFM3-VL-2B"; Flags: ignoreversion; Components: model_lfm3vl
+Source: "runtime\LFM3-Audio-2B*.gguf"; DestDir: "{#SnackHome}\models\LFM3-Audio-2B"; Flags: ignoreversion; Components: model_lfm3audio
+Source: "runtime\mmproj-LFM3-Audio-2B*.gguf"; DestDir: "{#SnackHome}\models\LFM3-Audio-2B"; Flags: ignoreversion; Components: model_lfm3audio
+Source: "runtime\LFM3-LICENSE*.txt"; DestDir: "{#SnackHome}\models\LFM3-Audio-2B"; Flags: ignoreversion; Components: model_lfm3audio
+Source: "runtime\LFM3-Omni-2B*.gguf"; DestDir: "{#SnackHome}\models\LFM3-Omni-2B"; Flags: ignoreversion; Components: model_lfm3omni
+Source: "runtime\mmproj-LFM3-Omni-2B*.gguf"; DestDir: "{#SnackHome}\models\LFM3-Omni-2B"; Flags: ignoreversion; Components: model_lfm3omni
+Source: "runtime\LFM3-LICENSE*.txt"; DestDir: "{#SnackHome}\models\LFM3-Omni-2B"; Flags: ignoreversion; Components: model_lfm3omni
 #endif
 ; doctor + helper scripts
 Source: "scripts\doctor.ps1"; DestDir: "{#SnackHome}\scripts"; Flags: ignoreversion
@@ -101,7 +119,7 @@ Filename: "{sysnative}\npm.cmd"; Parameters: "install -g @deepseek-ai/dsh"; Stat
 Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{#SnackHome}\scripts\configure-harness.ps1"" -Harness {code:GetHarnessName}"; StatusMsg: "Configuring harness endpoint..."; Flags: runhidden waituntilidle; Tasks: harness_pi harness_dsh
 ; 3. Register models in the GenieX model manager (only if models are selected)
 #ifndef NO_MODELS
-Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{#SnackHome}\scripts\register-models.ps1"""; StatusMsg: "Registering models..."; Flags: runhidden waituntilidle; Components: model4b model9b
+Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{#SnackHome}\scripts\register-models.ps1"""; StatusMsg: "Registering models..."; Flags: runhidden waituntilidle; Components: model4b model9b model_lfm3 model_lfm3vl model_lfm3audio model_lfm3omni
 #endif
 ; 4. Doctor — end on the green checklist
 Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{#SnackHome}\scripts\doctor.ps1"""; Description: "Run SNACK Doctor (recommended)"; Flags: postinstall nowait skipifsilent

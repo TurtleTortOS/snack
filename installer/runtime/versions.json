@@ -2,9 +2,9 @@
   "note": "Pinned artifacts for SnackSetup.exe. SHA256 values must be filled with the real hashes of the exact files in runtime/ before building the installer. Never build from an unfilled versions.json.",
   "geniex_cli_setup": {
     "file": "runtime/geniex-cli-setup.exe",
-    "url": "https://github.com/qualcomm/GenieX/releases/download/v0.8.0/geniex-cli-setup-windows-arm64-v0.8.0.exe",
-    "version": "0.8.0",
-    "sha256": "FCC4D932F371A9B3AD3D08A1B34912FE21A7FDF7C54D47C869250B50D81EC734"
+    "url": "https://github.com/qualcomm/GenieX/releases/download/v0.10.0/geniex-cli-setup-windows-arm64-v0.10.0.exe",
+    "version": "0.10.0",
+    "sha256": "1916E98741578ABC629364E8C144360F0040F41BD37F1A204164B04162C624BE"
   },
   "hermes": {
     "method": "install_script",
@@ -32,6 +32,48 @@
     "file": "runtime/Qwen3.8-9B.gguf",
     "url": "https://huggingface.co/TurtleTortOS/snack-models/resolve/main/Qwen3.8-9B.gguf",
     "sha256": "E90D41339734A60063DD7E6BFDE77184DC96AA2EF5503D4DBD20548DA9FCCB4C",
+    "optional": true
+  },
+  "model_lfm3": {
+    "file": "runtime/LFM3-1.7B.gguf",
+    "url": "https://huggingface.co/LiquidAI/LFM3-1.7B-GGUF/resolve/main/LFM3-1.7B-QAD-Q4_0.gguf",
+    "sha256": "43A7D09A0E9CBA91B63EB7052488B9564569BDDFD65754D2E426465E572A7452",
+    "optional": true
+  },
+  "model_lfm3vl": {
+    "file": "runtime/LFM3-VL-2B.gguf",
+    "url": "https://huggingface.co/LiquidAI/LFM3-VL-2B-GGUF/resolve/main/LFM3-VL-2B-QAD-Q4_0.gguf",
+    "sha256": "621C455376CB96A20891697DEB9975C6FB47DD5EA98ED3AD1F3B7E8F24F0B1E6",
+    "optional": true
+  },
+  "model_lfm3vl_mmproj": {
+    "file": "runtime/mmproj-LFM3-VL-2B.gguf",
+    "url": "https://huggingface.co/LiquidAI/LFM3-VL-2B-GGUF/resolve/main/mmproj-LFM3-VL-2B-Q8_0.gguf",
+    "sha256": "C5C5B58D544A18DA919172D2D0368090EA1A4A351B6FEB7F8A326A264A5918AB",
+    "optional": true
+  },
+  "model_lfm3audio": {
+    "file": "runtime/LFM3-Audio-2B.gguf",
+    "url": "https://huggingface.co/LiquidAI/LFM3-Audio-2B-GGUF/resolve/main/LFM3-Audio-2B-Q4_0.gguf",
+    "sha256": "112E4ACB79BE79DCD8DF5749495614817E51C064CD9CA576AEAD02B64B2B7584",
+    "optional": true
+  },
+  "model_lfm3audio_mmproj": {
+    "file": "runtime/mmproj-LFM3-Audio-2B.gguf",
+    "url": "https://huggingface.co/LiquidAI/LFM3-Audio-2B-GGUF/resolve/main/mmproj-LFM3-Audio-2B-Q8_0.gguf",
+    "sha256": "26601E904245A85BD8F3CF320A629E897CFC01C1D09369E8B4FD951F13024D3E",
+    "optional": true
+  },
+  "model_lfm3omni": {
+    "file": "runtime/LFM3-Omni-2B.gguf",
+    "url": "https://huggingface.co/LiquidAI/LFM3-Omni-2B-GGUF/resolve/main/LFM3-Omni-2B-Q4_0.gguf",
+    "sha256": "6D2273A383B92DD7C5DB0EB4C8DFEAE13E805B485A6621C4B391AE179C2B5F28",
+    "optional": true
+  },
+  "model_lfm3omni_mmproj": {
+    "file": "runtime/mmproj-LFM3-Omni-2B.gguf",
+    "url": "https://huggingface.co/LiquidAI/LFM3-Omni-2B-GGUF/resolve/main/mmproj-LFM3-Omni-2B-Q8_0.gguf",
+    "sha256": "720FF4FC09DF0E026C4EC641D0C698BF27B5BCD50561944C88EDA5E3DFFE1839",
     "optional": true
   }
 }

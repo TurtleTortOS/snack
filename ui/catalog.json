@@ -23,6 +23,50 @@
       "coldLoadS": 30,
       "installed": true,
       "sha256": "PENDING_FILL_AFTER_FINAL_QUANT"
+    },
+    {
+      "id": "qualcomm/LFM3-1.7B",
+      "name": "LFM3-1.7B",
+      "tag": "AGENT",
+      "usecase": "Agentic harnesses, 256K context, inbox/tool triage. QAD Q4_0 (quant-aware distilled).",
+      "sizeGB": 1.05,
+      "tps": 0,
+      "coldLoadS": 0,
+      "installed": true,
+      "sha256": "43A7D09A0E9CBA91B63EB7052488B9564569BDDFD65754D2E426465E572A7452"
+    },
+    {
+      "id": "qualcomm/LFM3-VL-2B",
+      "name": "LFM3-VL-2B",
+      "tag": "VISION",
+      "usecase": "Image + text understanding on-device (native-resolution photos, diagrams).",
+      "sizeGB": 1.25,
+      "tps": 0,
+      "coldLoadS": 0,
+      "installed": true,
+      "sha256": "621C455376CB96A20891697DEB9975C6FB47DD5EA98ED3AD1F3B7E8F24F0B1E6"
+    },
+    {
+      "id": "qualcomm/LFM3-Audio-2B",
+      "name": "LFM3-Audio-2B",
+      "tag": "AUDIO",
+      "usecase": "Audio transcription and audio + text reasoning (wav/mp3 in, text out).",
+      "sizeGB": 1.39,
+      "tps": 0,
+      "coldLoadS": 0,
+      "installed": true,
+      "sha256": "112E4ACB79BE79DCD8DF5749495614817E51C064CD9CA576AEAD02B64B2B7584"
+    },
+    {
+      "id": "qualcomm/LFM3-Omni-2B",
+      "name": "LFM3-Omni-2B",
+      "tag": "OMNI",
+      "usecase": "Vision + audio + text in one model. One turn can mix photo, clip, and question.",
+      "sizeGB": 1.59,
+      "tps": 0,
+      "coldLoadS": 0,
+      "installed": true,
+      "sha256": "6D2273A383B92DD7C5DB0EB4C8DFEAE13E805B485A6621C4B391AE179C2B5F28"
     }
   ],
   "contextSteps": [8192, 16384, 32768, 65536],
