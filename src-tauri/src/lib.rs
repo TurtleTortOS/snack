@@ -283,6 +283,8 @@ fn model_download(model_id: String) -> Result<ModelDownloadStatus, String> {
     // Spawn download in background thread
     let model_id_clone = model_id.clone();
     let gguf_clone = gguf_path.clone();
+    let model_name_clone = model_name.clone();
+    let model_dir_clone = model_dir.clone();
     std::thread::spawn(move || -> Option<()> {
         let client = reqwest::blocking::Client::builder()
             .timeout(Duration::from_secs(3600))
@@ -320,6 +322,38 @@ fn model_download(model_id: String) -> Result<ModelDownloadStatus, String> {
         // Remove progress file on success
         let progress_file = gguf_clone.with_extension("progress");
         let _ = std::fs::remove_file(progress_file);
+
+        // VLM companion: fetch mmproj-<name>.gguf when the repo carries one.
+        // The progress marker is written first so model_download_progress keeps
+        // reporting "downloading" until the projector lands (VLM pull needs it).
+        let mmproj_name = format!("mmproj-{}.gguf", model_name_clone);
+        let mmproj_url = format!("https://huggingface.co/{}/resolve/main/{}", HF_REPO, mmproj_name);
+        let mmproj_path = model_dir_clone.join(&mmproj_name);
+        let mmproj_progress = mmproj_path.with_extension("progress");
+        if let Ok(head) = client.head(&mmproj_url).send() {
+            if head.status().is_success() {
+                let _ = std::fs::write(&mmproj_progress, "0");
+                if let Ok(mut resp) = client.get(&mmproj_url).send() {
+                    if resp.status().is_success() {
+                        if let Ok(mut f) = std::fs::File::create(&mmproj_path) {
+                            let mut buf = vec![0u8; 65536];
+                            loop {
+                                match resp.read(&mut buf) {
+                                    Ok(0) => break,
+                                    Ok(n) => {
+                                        if f.write_all(&buf[..n]).is_err() {
+                                            break;
+                                        }
+                                    }
+                                    Err(_) => break,
+                                }
+                            }
+                        }
+                    }
+                }
+                let _ = std::fs::remove_file(&mmproj_progress);
+            }
+        }
         Some(())
     });
 
@@ -342,6 +376,17 @@ fn model_download_progress(model_id: String) -> Result<ModelDownloadStatus, Stri
     let progress_file = gguf_path.with_extension("progress");
 
     if gguf_path.exists() {
+        // VLM: main weights are down but the mmproj companion may still be
+        // streaming; stay "downloading" until its marker clears.
+        let mmproj_progress = model_dir.join(format!("mmproj-{}.progress", model_name));
+        if mmproj_progress.exists() {
+            return Ok(ModelDownloadStatus {
+                model_id,
+                status: "downloading".into(),
+                progress: Some(1.0),
+                error: None,
+            });
+        }
         return Ok(ModelDownloadStatus {
             model_id,
             status: "complete".into(),
@@ -598,14 +643,23 @@ fn models_reregister_blocking() -> Result<bool, String> {
             }
             let mut cmd = Command::new(geniex_exe());
             no_window(&mut cmd);
+            // mmproj-*.gguf in the dir marks a VLM; pull must record the type
+            let is_vlm = std::fs::read_dir(&dir)
+                .map(|rd| {
+                    rd.filter_map(|e| e.ok())
+                        .any(|e| e.file_name().to_string_lossy().starts_with("mmproj-"))
+                })
+                .unwrap_or(false);
             cmd.args([
                 "pull",
                 &id,
                 "--model-hub",
                 "localfs",
-                "--local-path",
-                &dir.to_string_lossy(),
             ]);
+            if is_vlm {
+                cmd.args(["--model-type", "vlm"]);
+            }
+            cmd.args(["--local-path", &dir.to_string_lossy()]);
             ensure_geniex_env(&mut cmd);
             let status = cmd
                 .stdout(Stdio::null())
