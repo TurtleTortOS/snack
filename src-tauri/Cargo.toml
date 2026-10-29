@@ -1,6 +1,6 @@
 [package]
 name = "snack"
-version = "0.2.0"
+version = "0.3.0"
 description = "SNACK — Snapdragon NPU AI Chat Kit control center"
 authors = ["Kyen <kyen@turtletortos.com>"]
 edition = "2021"

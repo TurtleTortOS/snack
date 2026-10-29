@@ -12,7 +12,7 @@
 ; The chat harness is a CHOICE — Hermes (default), Pi, or DeepSeek Harness.
 
 #define MyAppName "SNACK"
-#define MyAppVersion "0.2.0"
+#define MyAppVersion "0.3.0"
 #define MyAppPublisher "TurtleTortOS"
 #define MyAppExeName "snack.exe"
 #define SnackHome "C:\Snack"
