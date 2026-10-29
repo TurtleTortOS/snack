@@ -283,7 +283,7 @@ fn model_download(model_id: String) -> Result<ModelDownloadStatus, String> {
     // Spawn download in background thread
     let model_id_clone = model_id.clone();
     let gguf_clone = gguf_path.clone();
-    let model_name_clone = model_name.clone();
+    let model_name_clone = model_name.to_string();
     let model_dir_clone = model_dir.clone();
     std::thread::spawn(move || -> Option<()> {
         let client = reqwest::blocking::Client::builder()
